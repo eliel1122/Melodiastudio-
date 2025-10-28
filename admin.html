@@ -1,0 +1,30 @@
+
+<!doctype html><html lang="fr"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Admin — Melodia</title><link rel="stylesheet" href="styles.css"/></head><body>
+<div id="login" class="login"><h2>Connexion admin</h2><p class="note">Mot de passe requis.</p>
+<input id="pwd" type="password" placeholder="Mot de passe"/><button class="tab" id="loginBtn" style="margin-top:10px;width:100%">Se connecter</button>
+<p class="note" style="margin-top:8px"><a href="index.html">← Retour à l'accueil</a></p></div>
+
+<div id="adminApp" style="display:none" class="container">
+  <p><a href="index.html">← Retour à l'accueil</a></p>
+  <div class="tabs">
+    <button class="tab active" data-tab="services">Services & Prix</button>
+    <button class="tab" data-tab="stats">Stats</button>
+    <button class="tab" data-tab="calendar">Calendrier</button>
+    <button class="tab" data-tab="dispos">Disponibilités</button>
+    <button class="tab" data-tab="beatmakers">Beatmakers</button>
+    <button class="tab" data-tab="export">Export</button>
+  </div>
+
+  <section id="tab-services" class="card"><h3>Services & Prix (Accueil)</h3><div id="svcEditor"></div>
+    <div style="margin-top:10px"><button class="tab" id="exportServices">Télécharger services.json</button></div>
+  </section>
+
+  <section id="tab-stats" class="card" style="display:none"><h3>Statistiques</h3><div id="statsBox"></div></section>
+  <section id="tab-calendar" class="card" style="display:none"><h3>Calendrier</h3><div id="calBox"></div></section>
+  <section id="tab-dispos" class="card" style="display:none"><h3>Disponibilités</h3><div id="disposBox"></div></section>
+  <section id="tab-beatmakers" class="card" style="display:none"><h3>Beatmakers</h3><div id="bmEditor"></div></section>
+  <section id="tab-export" class="card" style="display:none"><h3>Export</h3><button class="tab" id="exportCsv">Exporter réservations (CSV)</button></section>
+</div>
+<script src="admin.js"></script></body></html>

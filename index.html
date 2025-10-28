@@ -1,0 +1,71 @@
+
+<!doctype html><html lang="fr"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Melodia Studio</title><link rel="stylesheet" href="styles.css"/></head><body id="top">
+<header>
+  <div class="nav">
+    <div class="brand"><img src="logo.png"/><span>Melodia Studio</span></div>
+    <nav class="navlinks"><a href="#services">Services</a><a href="#beatmakers">Beatmakers</a><a href="#contact">Contact</a><a class="cta" href="#services">Réservez maintenant</a></nav>
+    <button id="burgerBtn" aria-label="Ouvrir le menu" style="display:none" class="burger">☰</button>
+  </div>
+  <div id="mobileMenu" class="mobile-menu">
+    <a href="#services" class="m-link">Services</a>
+    <a href="#beatmakers" class="m-link">Beatmakers</a>
+    <a href="#contact" class="m-link">Contact</a>
+    <a href="#services" class="m-link cta">Réservez maintenant</a>
+  </div>
+</header>
+
+<section class="hero"><div class="container" style="text-align:center">
+<img src="logo.png" style="opacity:.9"/><h1>Réserve ta session en quelques clics</h1>
+<p>Ensuite laisse-nous faire la magie !</p><a class="cta" href="#services">Réservez maintenant</a></div></section>
+
+<section id="services" class="container section"><h2>Nos services</h2><div id="servicesWrap"></div></section>
+
+<section id="beatmakers" class="container section"><h2>Beatmakers</h2><div id="bmWrap" class="card"></div></section>
+
+<section id="contact" class="container section"><h2>Nous trouver</h2>
+  <div class="contact-grid">
+    <div class="map card"><iframe loading="lazy" allowfullscreen src="https://www.google.com/maps?q=5.3298595,-3.9547043&hl=fr&z=15&output=embed"></iframe></div>
+    <div class="card">
+      <div class="badge">Contact</div>
+      <p><strong>Adresse :</strong> Cocody Riviera 4 - M'pouto (accès par la Harpe Mélodieuse)</p>
+      <p><strong>Téléphone :</strong> <a href="tel:+2250718415131">+225 07 18 41 51 31</a> / <a href="tel:+2250703387738">+225 07 03 38 77 38</a></p>
+      <p><strong>Email :</strong> contact.melodia.studio@gmail.com</p>
+      <p><strong>Horaires :</strong> Lun–Sam 10:00–23:00 • Dim 14:00–23:00</p>
+    </div>
+  </div>
+</section>
+
+<div class="cart-fab" id="cartFab"><span>🛒</span><span class="count" id="cartCount">0</span></div>
+<aside class="drawer" id="drawer">
+  <header><strong>Votre réservation</strong><button id="closeDrawer" class="tab">Fermer</button></header>
+  <div class="list" id="cartList"></div>
+  <div class="form" style="padding:14px 16px">
+    <label>Beatmaker</label><select id="beatmakerSelect"></select>
+    <label>Choisir un créneau</label><select id="slotSelect"></select><small class="muted">Sélectionne un créneau proposé par le studio. Si rien ne convient, utilise le bouton ci-dessous.</small>
+    <label>Nom complet</label><input id="nameInput" placeholder="Nom et prénom"/>
+    <label>Téléphone (WhatsApp)</label><input id="phoneInput" placeholder="+225…"/>
+    <label>Email (facultatif)</label><input id="emailInput" placeholder="email@example.com"/>
+    <button class="btn" id="confirmBtn">Valider mon panier</button>
+    <div style="margin-top:10px">
+      <small class="muted">Aucun créneau ne te convient ?</small>
+      <button class="btn" id="customSlotBtn">Demander un créneau personnalisé</button>
+    </div>
+  </div>
+</aside>
+
+<section id="confirmation" class="container section" style="display:none">
+  <div class="card" id="confirmCard">
+    <h2>Réservation bien reçue ✅</h2>
+    <p id="confirmMsg" class="note"></p>
+    <div id="confirmRecap" style="margin-top:12px"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+      <a class="cta" href="#services" id="backToServices">Ajouter d'autres services</a>
+      <a class="tab" href="#top" id="backHome">Retour à l’accueil</a>
+    </div>
+  </div>
+</section>
+
+<footer>© 2025 Melodia Studio — Tous droits réservés. • <a href="admin.html">Admin</a></footer>
+<script src="app.js"></script></body></html>

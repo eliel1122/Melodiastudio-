@@ -1,4 +1,47 @@
+/* === Firebase sync (SITE PUBLIC) === */
+let __FB_APP = null;
+let __JUST_PUSHED_LOCAL = 0;
 
+async function __initFirebaseApp() {
+  if (__FB_APP) return __FB_APP;
+  const appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
+  const fsMod  = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js');
+  const firebaseConfig = {
+    apiKey: "AIzaSyCQeFRyWNQnFUX4GGeT9bYa5PA8lFlOSdY",
+    authDomain: "melodiastudio-f2d00.firebaseapp.com",
+    projectId: "melodiastudio-f2d00",
+    storageBucket: "melodiastudio-f2d00.firebasestorage.app",
+    messagingSenderId: "227814839561",
+    appId: "1:227814839561:web:90bda938bb2de4cdcdefd8",
+    measurementId: "G-9WCKN77S0B"
+  };
+  const app = appMod.initializeApp(firebaseConfig);
+  const db  = fsMod.getFirestore(app);
+  __FB_APP = { app, db, doc: fsMod.doc, getDoc: fsMod.getDoc, setDoc: fsMod.setDoc, onSnapshot: fsMod.onSnapshot };
+  return __FB_APP;
+}
+
+async function __cloudRefSite() {
+  const f = await __initFirebaseApp();
+  return f.doc(f.db, 'melodia', 'state');
+}
+
+// Cloud -> localStorage -> UI
+(async function __subscribeSite(){
+  const f = await __initFirebaseApp();
+  const ref = await __cloudRefSite();
+  f.onSnapshot(ref, snap => {
+    if (!snap.exists()) return;
+    const cloud = snap.data();
+    if (Date.now() - __JUST_PUSHED_LOCAL < 800) return;
+    localStorage.setItem('melodiaData', JSON.stringify(cloud));
+    // Rafraîchis l’interface
+    try { typeof renderServices   === 'function' && renderServices(); } catch(_) {}
+    try { typeof renderBeatmakers === 'function' && renderBeatmakers(); } catch(_) {}
+    try { typeof refreshCart      === 'function' && refreshCart(); } catch(_) {}
+    try { typeof populateSlots    === 'function' && populateSlots(); } catch(_) {}
+  });
+})();
 // ----- Seed data -----
 const seed = {
   categories:[
@@ -184,6 +227,7 @@ document.getElementById('confirmBtn').onclick=()=>{
   // remove slot
   data.availability = data.availability || {}; data.availability[bm.id] = (data.availability[bm.id]||[]).filter(x=>x!==dt);
   save(data);
+  __pushStateToCloudFromSite();
   const opened = tryOpenWhatsApp(msg);
   let d2=db(); d2.cart_items=[]; save(d2); refreshCart(); populateSlots();
   showConfirmation(bookingObj, opened);
@@ -197,6 +241,19 @@ document.getElementById('customSlotBtn').onclick=()=>{
   alert("Merci ! Nous allons te recontacter pour valider un créneau personnalisé.");
 };
 
+async function __pushStateToCloudFromSite() {
+  try {
+    const raw = localStorage.getItem('melodiaData');
+    if (!raw) return;
+    const state = JSON.parse(raw);
+    const f = await __initFirebaseApp();
+    const ref = await __cloudRefSite();
+    __JUST_PUSHED_LOCAL = Date.now();
+    await f.setDoc(ref, state, { merge: false });
+  } catch(e) {
+    console.error('[Firebase site] push error:', e);
+  }
+}
 // Burger
 const burgerBtn = document.getElementById('burgerBtn');
 const mobileMenu = document.getElementById('mobileMenu');

@@ -1,4 +1,42 @@
 /* === Firebase sync (ADMIN) === */
+let __FB_APP = null;
+let __JUST_PUSHED_LOCAL = 0;
+
+async function __initFirebaseApp() {
+  if (__FB_APP) return __FB_APP;
+  const appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
+  const fsMod  = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js');
+  const firebaseConfig = {
+    apiKey: "AIzaSyCQeFRyWNQnFUX4GGeT9bYa5PA8lFlOSdY",
+    authDomain: "melodiastudio-f2d00.firebaseapp.com",
+    projectId: "melodiastudio-f2d00",
+    storageBucket: "melodiastudio-f2d00.firebasestorage.app",
+    messagingSenderId: "227814839561",
+    appId: "1:227814839561:web:90bda938bb2de4cdcdefd8",
+    measurementId: "G-9WCKN77S0B"
+  };
+  const app = appMod.initializeApp(firebaseConfig);
+  const db  = fsMod.getFirestore(app);
+  __FB_APP = { app, db, doc: fsMod.doc, setDoc: fsMod.setDoc };
+  return __FB_APP;
+}
+
+async function __cloudRefSite() {
+  const f = await __initFirebaseApp();
+  return f.doc(f.db, 'melodia', 'state');
+}
+
+// pousse tout le localStorage vers Firestore
+async function saveDataToCloud() {
+  try {
+    __JUST_PUSHED_LOCAL = Date.now();
+    const f = await __initFirebaseApp();
+    const ref = await __cloudRefSite();
+    const all = JSON.parse(localStorage.getItem('melodiaData') || '{}');
+    await f.setDoc(ref, all, { merge: false });
+  } catch(e) { console.error('Cloud save error', e); }
+}
+/* === Firebase sync (ADMIN) === */
 let __FB_ADMIN = null;
 let __SYNCING_FROM_CLOUD = false;
 let __LAST_LOCAL_PUSH_AT = 0;

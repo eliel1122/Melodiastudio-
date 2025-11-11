@@ -259,16 +259,16 @@ function renderCalendar() {
         <th>Cl</th>
         <th>Total</th>
         <th>Bm</th>
-        <th>Statut</th>
+        <th>St</th>
         <th>Actions</th>
       </tr>
     </thead>
   `;
   const tb = document.createElement('tbody');
 
-  // on affiche du plus récent au plus ancien
+  // du plus récent au plus ancien
   d.bookings.slice().reverse().forEach((b, idxFromEnd) => {
-    const realIndex = d.bookings.length - 1 - idxFromEnd; // index réel dans le tableau
+    const realIndex = d.bookings.length - 1 - idxFromEnd;
     const tr = document.createElement('tr');
 
     const bm =
@@ -279,10 +279,14 @@ function renderCalendar() {
     if (b.status === 'paid') statusIcon = '✅';
     else if (b.status === 'cancelled') statusIcon = '❌';
 
+    // Ref abrégée pour l'affichage, complète pour le tooltip & l'export
+    const fullRef = b.ref || '';
+    const shortRef = fullRef.length > 14 ? fullRef.slice(0, 14) + '…' : fullRef;
+
     tr.innerHTML = `
-      <td>${b.ref}</td>
+      <td class="cal-ref" title="${fullRef}">${shortRef}</td>
       <td>${formatDate(b.datetime)}</td>
-      <td>${b.name}</td>
+      <td class="cal-client">${b.name}</td>
       <td>${b.total.toLocaleString()} FCFA</td>
       <td>${bm}</td>
       <td>${statusIcon}</td>
@@ -324,7 +328,7 @@ function renderCalendar() {
       x.bookings[realIndex].status = 'cancelled';
       save(x);
       renderCalendar();
-      renderDispos(); // pour rafraîchir l’onglet Disponibilités
+      renderDispos();
     };
 
     tdActions.appendChild(btnOk);

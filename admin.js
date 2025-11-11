@@ -171,7 +171,12 @@ function renderSvcEditor(){
     const box=document.createElement('div'); box.className='card'; box.style.marginBottom='12px';
     const title=document.createElement('h4'); title.textContent=cat.name; box.appendChild(title);
     cat.services.forEach((svc,sidx)=>{
-      const row=document.createElement('div'); row.className='service'; row.innerHTML=`<input value="${svc.title}" style="width:260px;margin-right:8px"/> <input value="${svc.desc||''}" style="width:60%"/>`;
+      const row=document.createElement('div'); row.className='service'; row.innerHTML = `
+  <div class="svc-head">
+    <input class="svc-title" value="${svc.title}" placeholder="Nom du service"/>
+    <input class="svc-desc"  value="${svc.desc||''}" placeholder="Description (facultatif)"/>
+  </div>
+`;
       // options
       const tbl=document.createElement('table'); tbl.innerHTML='<thead><tr><th>Label</th><th>Minutes</th><th>Prix (FCFA)</th><th></th></tr></thead>';
       const tb=document.createElement('tbody'); tbl.appendChild(tb);

@@ -14,10 +14,6 @@ let __SYNCING_FROM_CLOUD = false;
 let __LAST_LOCAL_PUSH_AT = 0;
 
 // Initialise Firebase + Firestore (une seule fois)
-let __FB_ADMIN = null;
-let __SYNCING_FROM_CLOUD = false;
-let __LAST_LOCAL_PUSH_AT = 0;
-
 async function __initFirebaseAdmin() {
   if (__FB_ADMIN) return __FB_ADMIN;
 

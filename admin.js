@@ -159,24 +159,57 @@ async function ensureLocalFromCloud() {
     console.error('ensureLocalFromCloud error', e);
   }
 }
-const PASS = "melodia2025";
+window.addEventListener('DOMContentLoaded', async () => {
+  const loginBox  = document.getElementById('login');
+  const adminBox  = document.getElementById('adminApp');
+  const emailInput = document.getElementById('adminEmail');
+  const pwdInput   = document.getElementById('adminPwd');
+  const loginBtn   = document.getElementById('loginBtn');
+  const logoutBtn  = document.getElementById('logoutBtn');
 
-document.getElementById('loginBtn').onclick = async () => {
-  const v = (document.getElementById('pwd').value || '').trim();
-  if (v === PASS) {
-    // On affiche l'admin
-    document.getElementById('login').style.display = 'none';
-    document.getElementById('adminApp').style.display = 'block';
+  const fb = await __initFirebaseAdmin();
 
-    // 🔁 On récupère d'abord l'état Firestore → localStorage
-    await ensureLocalFromCloud();
+  // Réagit automatiquement si l'admin est déjà connecté
+  fb.onAuthStateChanged(fb.auth, (user) => {
+    if (user) {
+      loginBox.style.display = 'none';
+      adminBox.style.display = 'block';
+      init(); // ton init() existant : tabs, stats, calendrier, etc.
+    } else {
+      adminBox.style.display = 'none';
+      loginBox.style.display = 'block';
+    }
+  });
 
-    // Puis on lance l'UI admin avec ces données
-    init();
-  } else {
-    alert("Mot de passe incorrect.");
+  loginBtn.onclick = async () => {
+    const email = (emailInput.value || '').trim();
+    const pwd   = (pwdInput.value   || '').trim();
+
+    if (!email || !pwd) {
+      alert("Merci de renseigner email et mot de passe.");
+      return;
+    }
+
+    try {
+      await fb.signInWithEmailAndPassword(fb.auth, email, pwd);
+      // onAuthStateChanged s’occupe d’afficher l’admin
+    } catch (e) {
+      console.error(e);
+      alert("Connexion impossible. Vérifie ton email / mot de passe.");
+    }
+  };
+
+  if (logoutBtn) {
+    logoutBtn.onclick = async () => {
+      try {
+        await fb.signOut(fb.auth);
+      } catch (e) {
+        console.error(e);
+      }
+    };
   }
-};
+});
+
 
 // Tabs
 document.querySelectorAll('.tab[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{

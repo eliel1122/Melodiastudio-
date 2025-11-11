@@ -171,48 +171,61 @@ async function ensureLocalFromCloud() {
   const appBox     = document.getElementById('adminApp');
   const emailInput = document.getElementById('adminEmail');
   const pwdInput   = document.getElementById('adminPwd');
-  const btn        = document.getElementById('loginBtn');
+  const loginBtn   = document.getElementById('loginBtn');
+  const logoutBtn  = document.getElementById('logoutBtn');
 
   const f = await __initFirebaseAdmin();
 
-  // Écouteur sur le bouton "Se connecter"
-  btn.onclick = async () => {
-    const email = (emailInput.value || '').trim();
-    const pwd   = (pwdInput.value   || '').trim();
-
-    if (!email || !pwd) {
-      alert("Merci de saisir l'email et le mot de passe.");
-      return;
+  // Réagit au changement de connexion (login / logout)
+  f.onAuthStateChanged(f.auth, (user) => {
+    if (user) {
+      // Connecté
+      if (loginBox) loginBox.style.display = 'none';
+      if (appBox)   appBox.style.display   = 'block';
+    } else {
+      // Déconnecté
+      if (appBox)   appBox.style.display   = 'none';
+      if (loginBox) loginBox.style.display = 'block';
     }
+  });
 
-    try {
-      btn.disabled = true;
-      const oldText = btn.textContent;
-      btn.textContent = 'Connexion...';
+  // Bouton "Se connecter"
+  if (loginBtn) {
+    loginBtn.onclick = async () => {
+      const email = (emailInput?.value || '').trim();
+      const pwd   = (pwdInput?.value   || '').trim();
 
-      await f.signInWithEmailAndPassword(f.auth, email, pwd);
-      // Si ça marche, onAuthStateChanged ci-dessous s’occupe d’afficher l’admin
+      if (!email || !pwd) {
+        alert("Merci de saisir l'email et le mot de passe.");
+        return;
+      }
 
-      btn.textContent = oldText;
-      btn.disabled = false;
-    } catch (e) {
-      console.error(e);
-      alert("Connexion impossible. Vérifie l'email ou le mot de passe.");
-      btn.disabled = false;
-      btn.textContent = 'Se connecter';
-    }
-  };
+      try {
+        loginBtn.disabled   = true;
+        const oldText       = loginBtn.textContent;
+        loginBtn.textContent = 'Connexion...';
+
+        await f.signInWithEmailAndPassword(f.auth, email, pwd);
+
+        loginBtn.textContent = oldText;
+        loginBtn.disabled    = false;
+        // onAuthStateChanged affiche déjà l'app admin
+      } catch (e) {
+        console.error(e);
+        alert("Connexion impossible. Vérifie l'email et le mot de passe.");
+        loginBtn.disabled    = false;
+        loginBtn.textContent = 'Se connecter';
+      }
+    };
+  }
+
   // Bouton "Se déconnecter"
-  const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.onclick = async () => {
       try {
-        const f = await __initFirebaseAdmin();   // même init que pour le login
-        await f.signOut(f.auth);                 // déconnexion Firebase
-
-        // On masque l'app admin et on remet l'écran de login
-        const loginBox  = document.getElementById('login');
-        const appBox    = document.getElementById('adminApp');
+        await f.signOut(f.auth);
+        // onAuthStateChanged masquera l'app admin,
+        // mais on force visuellement au cas où :
         if (appBox)   appBox.style.display   = 'none';
         if (loginBox) loginBox.style.display = 'block';
       } catch (e) {
@@ -221,67 +234,7 @@ async function ensureLocalFromCloud() {
       }
     };
   }
-  // Quand l’état de connexion change
-  // --- Gestion de l’état de connexion ---
-f.onAuthStateChanged(f.auth, (user) => {
-  const currentPage = window.location.pathname;
-
-  if (user) {
-    // ✅ Utilisateur connecté
-    loginBox.style.display = 'none';
-    appBox.style.display   = 'block';
-
-    // Si l’utilisateur arrive depuis une autre page (ex: index.html)
-    // et qu’il est déjà connecté, on le redirige automatiquement vers /admin
-    if (!currentPage.includes("/admin")) {
-      window.location.href = "/admin";
-    }
-
-    init(); // on charge le dashboard
-  } else {
-    // ❌ Non connecté
-    appBox.style.display   = 'none';
-    loginBox.style.display = 'block';
-
-    // Si on est sur /admin sans être connecté → redirige vers l’accueil
-    if (currentPage.includes("/admin")) {
-      window.location.href = "/";
-    }
-  }
-});
-  const logoutBtn = document.getElementById('logoutBtn');
-if (logoutBtn) {
-  logoutBtn.onclick = async () => {
-    try {
-      await f.signOut(f.auth);
-      alert("Déconnecté avec succès.");
-    } catch (e) {
-      console.error(e);
-      alert("Erreur lors de la déconnexion.");
-    }
-  };
-}
 })();
-
-// Tabs
-document.querySelectorAll('.tab[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{
-  document.querySelectorAll('.tab[data-tab]').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
-  const id=btn.dataset.tab; document.querySelectorAll('section[id^=tab-]').forEach(s=>s.style.display='none'); document.getElementById('tab-'+id).style.display='block';
-}));
-
-function init(){
-  renderSvcEditor();
-  renderStats();
-  renderCalendar();
-  renderDispos();
-  renderBmEditor();
-
-  document.getElementById('exportCsv').onclick = exportCsv;
-  document.getElementById('exportServices').onclick = exportServices;
-
-  const calExportBtn = document.getElementById('calExportBtn');
-  if (calExportBtn) calExportBtn.onclick = exportCsv;
-}
 
 // ---- Services Editor (live sync) ----
 function renderSvcEditor(){

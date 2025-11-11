@@ -424,66 +424,74 @@ function exportServices(){ const d=db(); const blob=new Blob([JSON.stringify({ca
   try {
     const fb = await __initFirebaseAdmin();
 
-    const loginBox   = document.getElementById('login');
-    const adminBox   = document.getElementById('adminApp');
-    const emailInput = document.getElementById('adminEmail');
-    const pwdInput   = document.getElementById('adminPwd');
-    const loginBtn   = document.getElementById('loginBtn');
-    const logoutBtn  = document.getElementById('logoutBtn');
+    const loginBox  = document.getElementById('login');
+    const adminBox  = document.getElementById('adminApp');
+    const emailInput= document.getElementById('adminEmail');
+    const pwdInput  = document.getElementById('adminPwd');
+    const loginBtn  = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
 
-    if (!loginBox || !adminBox || !emailInput || !pwdInput || !loginBtn) {
+    if (!loginBox || !adminBox || !emailInput || !pwdInput || !loginBtn || !logoutBtn) {
       console.warn('[admin] Elements de login introuvables');
       return;
     }
 
-    // Suivi de l'état de connexion
-    fb.onAuthStateChanged(fb.auth, (user) => {
-      if (user) {
-        // Connecté
-        loginBox.style.display = 'none';
-        adminBox.style.display = 'block';
-        try {
-          init(); // ta fonction init() existante
-        } catch (e) {
-          console.error('[admin] Erreur dans init()', e);
-        }
-      } else {
-        // Déconnecté
-        adminBox.style.display = 'none';
-        loginBox.style.display = 'block';
-      }
-    });
-
-    // Connexion
-    loginBtn.onclick = async () => {
+    // --- Clic sur "Se connecter" ---
+    loginBtn.addEventListener('click', async () => {
       const email = (emailInput.value || '').trim();
       const pwd   = (pwdInput.value   || '').trim();
 
       if (!email || !pwd) {
-        alert("Merci de renseigner email et mot de passe.");
+        alert("Merci de saisir l'email et le mot de passe.");
         return;
       }
 
+      const oldText = loginBtn.textContent;
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Connexion...';
+
       try {
         await fb.signInWithEmailAndPassword(fb.auth, email, pwd);
-        // onAuthStateChanged se charge d'afficher l'admin
       } catch (e) {
-        console.error('[admin] Erreur de connexion', e);
-        alert("Connexion impossible. Vérifie ton email et ton mot de passe.");
+        console.error('[admin] Erreur login', e);
+        alert("Connexion impossible. Vérifie l'email et le mot de passe.");
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = oldText;
       }
-    };
+    });
 
-    // Déconnexion
-    if (logoutBtn) {
-      logoutBtn.onclick = async () => {
+    // --- Clic sur "Se déconnecter" ---
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await fb.signOut(fb.auth);
+      } catch (e) {
+        console.error('[admin] Erreur logout', e);
+        alert("Erreur lors de la déconnexion.");
+      }
+    });
+
+    // --- Suivi de l'état de connexion ---
+    fb.onAuthStateChanged(fb.auth, (user) => {
+      if (user) {
+        // Connecté
+        loginBox.style.display  = 'none';
+        adminBox.style.display  = 'block';
+
         try {
-          await fb.signOut(fb.auth);
+          init();   // ta fonction init() qui affiche Services, Stats, Calendrier, etc.
         } catch (e) {
-          console.error('[admin] Erreur de déconnexion', e);
+          console.error("[admin] Erreur dans init()", e);
         }
-      };
-    }
+      } else {
+        // Déconnecté
+        adminBox.style.display  = 'none';
+        loginBox.style.display  = 'block';
+      }
+    });
+
   } catch (e) {
-    console.error('[admin] Erreur d\'initialisation Firebase', e);
+    console.error("[admin] Erreur dans l'initialisation Firebase admin", e);
   }
 })();
+

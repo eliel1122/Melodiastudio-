@@ -504,6 +504,32 @@ function renderBmEditor(){
   box.appendChild(add);
 }
 
+// ---- Tabs (navigation admin) ----
+document.addEventListener('DOMContentLoaded', () => {
+  const tabs     = document.querySelectorAll('.tab[data-tab]');
+  const sections = document.querySelectorAll('section[id^="tab-"]');
+
+  if (!tabs.length) return;
+
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      // onglet actif
+      tabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const id = btn.dataset.tab; // services, stats, calendar...
+
+      // afficher la bonne section, cacher les autres
+      sections.forEach(sec => {
+        sec.style.display = (sec.id === 'tab-' + id) ? 'block' : 'none';
+      });
+    });
+  });
+
+  // forcer "services" par défaut
+  const first = document.querySelector('.tab[data-tab="services"]');
+  if (first) first.click();
+});
 // ---- Export CSV ----
 function exportCsv(){
   const d=db(); const rows=[["ref","date","client","phone","email","total","beatmaker","status"]];

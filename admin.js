@@ -204,18 +204,33 @@ async function ensureLocalFromCloud() {
   };
 
   // Quand l’état de connexion change
-  f.onAuthStateChanged(f.auth, (user) => {
-    if (user) {
-      // Connecté → on montre l’app admin
-      loginBox.style.display = 'none';
-      appBox.style.display   = 'block';
-      init();
-    } else {
-      // Déconnecté → on affiche l’écran de login
-      appBox.style.display   = 'none';
-      loginBox.style.display = 'block';
+  // --- Gestion de l’état de connexion ---
+f.onAuthStateChanged(f.auth, (user) => {
+  const currentPage = window.location.pathname;
+
+  if (user) {
+    // ✅ Utilisateur connecté
+    loginBox.style.display = 'none';
+    appBox.style.display   = 'block';
+
+    // Si l’utilisateur arrive depuis une autre page (ex: index.html)
+    // et qu’il est déjà connecté, on le redirige automatiquement vers /admin
+    if (!currentPage.includes("/admin")) {
+      window.location.href = "/admin";
     }
-  });
+
+    init(); // on charge le dashboard
+  } else {
+    // ❌ Non connecté
+    appBox.style.display   = 'none';
+    loginBox.style.display = 'block';
+
+    // Si on est sur /admin sans être connecté → redirige vers l’accueil
+    if (currentPage.includes("/admin")) {
+      window.location.href = "/";
+    }
+  }
+});
   const logoutBtn = document.getElementById('logoutBtn');
 if (logoutBtn) {
   logoutBtn.onclick = async () => {

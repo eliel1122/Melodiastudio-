@@ -78,3 +78,45 @@ td,th{border-bottom:1px solid rgba(255,255,255,.08);padding:8px;text-align:left}
   .cta{ padding:12px 18px; }
   .cart-fab{ right:14px; bottom:14px; }
 }
+/* ===== Layout responsive pour l'admin ===== */
+
+/* En-tête des services : les deux inputs sur une ligne qui se replie sur mobile */
+#svcEditor .svc-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#svcEditor .svc-head input {
+  flex: 1 1 180px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Tables Services & Calendrier : prendre toute la largeur, sans dépasser */
+#svcEditor table,
+#calBox table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Inputs dans le tableau services : s'adaptent à la colonne */
+#svcEditor table input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Calendrier : texte plus petit et qui revient à la ligne sur mobile */
+@media (max-width: 768px) {
+  #calBox table {
+    font-size: 12px;
+  }
+
+  #calBox th,
+  #calBox td {
+    padding: 4px 6px;
+    white-space: normal;      /* autorise le retour à la ligne */
+    word-break: break-word;   /* casse les mots si besoin */
+  }
+}

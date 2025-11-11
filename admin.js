@@ -217,90 +217,106 @@ function renderCalendar() {
   const box = document.getElementById('calBox');
   const d = db();
 
-  if (!d.bookings.length) {
+  if (!d.bookings || !d.bookings.length) {
     box.innerHTML = '<small class="note">Aucune réservation.</small>';
     return;
   }
 
-  const tbl = document.createElement('table');
-  tbl.innerHTML =
-    '<thead><tr>' +
-    '<th>Ref</th>' +
-    '<th>Date</th>' +
-    '<th>Client</th>' +
-    '<th>Total</th>' +
-    '<th>Beatmaker</th>' +
-    '<th>Statut</th>' +
-    '<th>Actions</th>' +
-    '</tr></thead>';
+  // date courte : JJ/MM/AA HH:MM (sans secondes)
+  const formatDate = (iso) => {
+    const dt = new Date(iso);
+    const date = dt.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    });
+    const time = dt.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    return `${date} ${time}`;
+  };
 
+  const tbl = document.createElement('table');
+  tbl.innerHTML = `
+    <thead>
+      <tr>
+        <th>Ref</th>
+        <th>Date</th>
+        <th>Cl</th>
+        <th>Total</th>
+        <th>Bm</th>
+        <th>Statut</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+  `;
   const tb = document.createElement('tbody');
 
-  d.bookings.forEach((b, idx) => {
+  // on affiche du plus récent au plus ancien
+  d.bookings.slice().reverse().forEach((b, idxFromEnd) => {
+    const realIndex = d.bookings.length - 1 - idxFromEnd; // index réel dans le tableau
     const tr = document.createElement('tr');
-    const dt = new Date(b.datetime).toLocaleString('fr-FR');
-    const bm = (d.beatmakers.find(x => x.id === b.beatmakerId) || {}).name || '';
 
-    // colonnes principales
-    tr.innerHTML =
-      `<td>${b.ref}</td>` +
-      `<td>${dt}</td>` +
-      `<td>${b.name}</td>` +
-      `<td>${b.total.toLocaleString()} FCFA</td>` +
-      `<td>${bm}</td>` +
-      `<td>${b.status || 'pending'}</td>`;
+    const bm =
+      (d.beatmakers.find((x) => x.id === b.beatmakerId) || {}).name || '';
 
-    // colonne Actions
-    const tdActions = document.createElement('td');
+    // icône de statut
+    let statusIcon = '⏳';
+    if (b.status === 'paid') statusIcon = '✅';
+    else if (b.status === 'cancelled') statusIcon = '❌';
 
-    // --- Bouton VALIDER ---
+    tr.innerHTML = `
+      <td>${b.ref}</td>
+      <td>${formatDate(b.datetime)}</td>
+      <td>${b.name}</td>
+      <td>${b.total.toLocaleString()} FCFA</td>
+      <td>${bm}</td>
+      <td>${statusIcon}</td>
+      <td class="cal-actions"></td>
+    `;
+
+    const tdActions = tr.querySelector('.cal-actions');
+
+    // bouton ✅
     const btnOk = document.createElement('button');
-    btnOk.textContent = 'Valider';
-    btnOk.className = 'tab';
+    btnOk.className = 'cal-btn cal-btn-ok';
+    btnOk.textContent = '✅';
+    btnOk.title = 'Marquer comme payé';
     btnOk.onclick = () => {
       let x = db();
-      x.bookings[idx].status = 'paid';
-      save(x);          // => push vers Firestore
-      renderCalendar(); // refresh affichage
+      x.bookings[realIndex].status = 'paid';
+      save(x);
+      renderCalendar();
     };
 
-    // --- Bouton ANNULER ---
+    // bouton ❌
     const btnCancel = document.createElement('button');
-    btnCancel.textContent = 'Annuler';
-    btnCancel.className = 'tab';
-    btnCancel.style.marginLeft = '6px';
+    btnCancel.className = 'cal-btn cal-btn-cancel';
+    btnCancel.textContent = '❌';
+    btnCancel.title = 'Annuler la réservation';
     btnCancel.onclick = () => {
-      if (!confirm('Annuler cette réservation et libérer le créneau ?')) return;
-
       let x = db();
-      const booking = x.bookings[idx];
+      const bk = x.bookings[realIndex];
 
-      // 1) on marque comme annulée
-      booking.status = 'cancelled';
-
-      // 2) on remet le créneau dans availability du bon beatmaker
-      const bmId = booking.beatmakerId;
-      const slotIso = booking.datetime; // string ISO déjà utilisé
-
-      x.availability = x.availability || {};
-      x.availability[bmId] = x.availability[bmId] || [];
-
-      if (!x.availability[bmId].includes(slotIso)) {
-        x.availability[bmId].push(slotIso);
+      // si on annule, on rend le créneau à nouveau disponible
+      if (bk.status !== 'cancelled') {
+        x.availability = x.availability || {};
+        x.availability[bk.beatmakerId] = x.availability[bk.beatmakerId] || [];
+        if (!x.availability[bk.beatmakerId].includes(bk.datetime)) {
+          x.availability[bk.beatmakerId].push(bk.datetime);
+        }
       }
 
-      // 3) sauvegarde (=> Firestore) + broadcast au site public
+      x.bookings[realIndex].status = 'cancelled';
       save(x);
-      try { broadcastAvailability(x.availability); } catch (e) {}
-
-      // 4) refresh UI admin (calendrier + onglet dispos)
       renderCalendar();
-      try { renderDispos(); } catch (e) {}
+      renderDispos(); // pour rafraîchir l’onglet Disponibilités
     };
 
     tdActions.appendChild(btnOk);
     tdActions.appendChild(btnCancel);
-    tr.appendChild(tdActions);
     tb.appendChild(tr);
   });
 

@@ -171,61 +171,48 @@ async function ensureLocalFromCloud() {
   const appBox     = document.getElementById('adminApp');
   const emailInput = document.getElementById('adminEmail');
   const pwdInput   = document.getElementById('adminPwd');
-  const loginBtn   = document.getElementById('loginBtn');
-  const logoutBtn  = document.getElementById('logoutBtn');
+  const btn        = document.getElementById('loginBtn');
 
   const f = await __initFirebaseAdmin();
 
-  // Réagit au changement de connexion (login / logout)
-  f.onAuthStateChanged(f.auth, (user) => {
-    if (user) {
-      // Connecté
-      if (loginBox) loginBox.style.display = 'none';
-      if (appBox)   appBox.style.display   = 'block';
-    } else {
-      // Déconnecté
-      if (appBox)   appBox.style.display   = 'none';
-      if (loginBox) loginBox.style.display = 'block';
+  // Écouteur sur le bouton "Se connecter"
+  btn.onclick = async () => {
+    const email = (emailInput.value || '').trim();
+    const pwd   = (pwdInput.value   || '').trim();
+
+    if (!email || !pwd) {
+      alert("Merci de saisir l'email et le mot de passe.");
+      return;
     }
-  });
 
-  // Bouton "Se connecter"
-  if (loginBtn) {
-    loginBtn.onclick = async () => {
-      const email = (emailInput?.value || '').trim();
-      const pwd   = (pwdInput?.value   || '').trim();
+    try {
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = 'Connexion...';
 
-      if (!email || !pwd) {
-        alert("Merci de saisir l'email et le mot de passe.");
-        return;
-      }
+      await f.signInWithEmailAndPassword(f.auth, email, pwd);
+      // Si ça marche, onAuthStateChanged ci-dessous s’occupe d’afficher l’admin
 
-      try {
-        loginBtn.disabled   = true;
-        const oldText       = loginBtn.textContent;
-        loginBtn.textContent = 'Connexion...';
-
-        await f.signInWithEmailAndPassword(f.auth, email, pwd);
-
-        loginBtn.textContent = oldText;
-        loginBtn.disabled    = false;
-        // onAuthStateChanged affiche déjà l'app admin
-      } catch (e) {
-        console.error(e);
-        alert("Connexion impossible. Vérifie l'email et le mot de passe.");
-        loginBtn.disabled    = false;
-        loginBtn.textContent = 'Se connecter';
-      }
-    };
-  }
-
+      btn.textContent = oldText;
+      btn.disabled = false;
+    } catch (e) {
+      console.error(e);
+      alert("Connexion impossible. Vérifie l'email ou le mot de passe.");
+      btn.disabled = false;
+      btn.textContent = 'Se connecter';
+    }
+  };
   // Bouton "Se déconnecter"
+  const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.onclick = async () => {
       try {
-        await f.signOut(f.auth);
-        // onAuthStateChanged masquera l'app admin,
-        // mais on force visuellement au cas où :
+        const f = await __initFirebaseAdmin();   // même init que pour le login
+        await f.signOut(f.auth);                 // déconnexion Firebase
+
+        // On masque l'app admin et on remet l'écran de login
+        const loginBox  = document.getElementById('login');
+        const appBox    = document.getElementById('adminApp');
         if (appBox)   appBox.style.display   = 'none';
         if (loginBox) loginBox.style.display = 'block';
       } catch (e) {
@@ -234,32 +221,68 @@ async function ensureLocalFromCloud() {
       }
     };
   }
+  // Quand l’état de connexion change
+  // --- Gestion de l’état de connexion ---
+f.onAuthStateChanged(f.auth, (user) => {
+  const currentPage = window.location.pathname;
+
+  if (user) {
+    // ✅ Utilisateur connecté
+    loginBox.style.display = 'none';
+    appBox.style.display   = 'block';
+
+    // Si l’utilisateur arrive depuis une autre page (ex: index.html)
+    // et qu’il est déjà connecté, on le redirige automatiquement vers /admin
+    if (!currentPage.includes("/admin")) {
+      window.location.href = "/admin";
+    }
+
+    init(); // on charge le dashboard
+  } else {
+    // ❌ Non connecté
+    appBox.style.display   = 'none';
+    loginBox.style.display = 'block';
+
+    // Si on est sur /admin sans être connecté → redirige vers l’accueil
+    if (currentPage.includes("/admin")) {
+      window.location.href = "/";
+    }
+  }
+});
+  const logoutBtn = document.getElementById('logoutBtn');
+if (logoutBtn) {
+  logoutBtn.onclick = async () => {
+    try {
+      await f.signOut(f.auth);
+      alert("Déconnecté avec succès.");
+    } catch (e) {
+      console.error(e);
+      alert("Erreur lors de la déconnexion.");
+    }
+  };
+}
 })();
 
+// Tabs
+document.querySelectorAll('.tab[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{
+  document.querySelectorAll('.tab[data-tab]').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+  const id=btn.dataset.tab; document.querySelectorAll('section[id^=tab-]').forEach(s=>s.style.display='none'); document.getElementById('tab-'+id).style.display='block';
+}));
 
-// ---- Init admin une fois connecté ----
-function init() {
-  // on (re)rend chaque partie
+function init(){
   renderSvcEditor();
   renderStats();
   renderCalendar();
   renderDispos();
   renderBmEditor();
 
-  // boutons d'export
-  const csvBtn = document.getElementById('exportCsv');
-  const svcBtn = document.getElementById('exportServices');
-  if (csvBtn) csvBtn.onclick = exportCsv;
-  if (svcBtn) svcBtn.onclick = exportServices;
+  document.getElementById('exportCsv').onclick = exportCsv;
+  document.getElementById('exportServices').onclick = exportServices;
+
+  const calExportBtn = document.getElementById('calExportBtn');
+  if (calExportBtn) calExportBtn.onclick = exportCsv;
 }
 
-  // préparation des onglets
-  setupTabs();
-
-  // forcer l’onglet "services" par défaut
-  const firstTab = document.querySelector('.tab[data-tab="services"]');
-  if (firstTab) firstTab.click();
-}
 // ---- Services Editor (live sync) ----
 function renderSvcEditor(){
   let data=db(); const wrap=document.getElementById('svcEditor'); wrap.innerHTML='';
@@ -305,161 +328,132 @@ function broadcastCategories(cats){ localStorage.setItem("melodia_services_categ
 function exportServices(){ const d=db(); const blob=new Blob([JSON.stringify({categories:d.categories},null,2)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download="services.json"; a.click(); URL.revokeObjectURL(url);}
 
 // ---- Stats ----
-function renderStats() {
-  const box = document.getElementById('statsBox');
-  const d = db();
-  const paid = d.bookings.filter(b => b.status === "paid");
-  const pending = d.bookings.filter(b => b.status === "pending");
-  const total = paid.reduce((s, a) => s + a.total, 0);
+function renderStats(){ const box=document.getElementById('statsBox'); const d=db(); const paid=d.bookings.filter(b=>b.status==="paid"); const pending=d.bookings.filter(b=>b.status==="pending"); const total=paid.reduce((s,a)=>s+a.total,0); box.innerHTML=`<p><strong>Réservations payées :</strong> ${paid.length} • <strong>CA :</strong> ${total.toLocaleString()} FCFA</p><p><strong>En attente :</strong> ${pending.length}</p>`;}
 
-  box.innerHTML = `
-    <p><strong>Réservations payées :</strong> ${paid.length}
-    • <strong>CA :</strong> ${total.toLocaleString()} FCFA</p>
-    <p><strong>En attente :</strong> ${pending.length}</p>
-  `;
-}
-
+// ---- Calendar (simplified list) ----
 // ---- Calendar (simplified list) ----
 function renderCalendar() {
   const box = document.getElementById('calBox');
+  const d = db();
 
-  try {
-    const d = db() || {};
-    const allBookings = Array.isArray(d.bookings) ? d.bookings : [];
-
-    // On masque les réservations annulées
-    const visible = allBookings.filter(b => b && b.status !== 'cancelled');
-
-    if (!visible.length) {
-      box.innerHTML = '<small class="note">Aucune réservation.</small>';
-      return;
-    }
-
-    const tbl = document.createElement('table');
-    tbl.innerHTML = `
-      <thead>
-        <tr>
-          <th>Ref</th>
-          <th>Date</th>
-          <th>Cl</th>
-          <th>Total</th>
-          <th>Bm</th>
-          <th>Statut</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-    `;
-    const tb = document.createElement('tbody');
-
-    // Plus récentes en haut
-    visible.slice().reverse().forEach(b => {
-      const tr = document.createElement('tr');
-
-      // Date / heure en JJ/MM/AA HH:MM
-      const dt = new Date(b.datetime).toLocaleString('fr-FR', {
-        year: '2-digit',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-
-      // Référence abrégée pour l'affichage, complète au survol
-      const refFull = b.ref || '';
-      const refShort = refFull.length > 13 ? refFull.slice(0, 13) + '…' : refFull;
-
-      // Nom du beatmaker
-      const bm = (d.beatmakers || []).find(x => x.id === b.beatmakerId);
-      const bmName = bm ? bm.name : '';
-
-      // Statut -> icône
-      const statusIcon = b.status === 'paid' ? '✅' : '❌';
-
-      tr.innerHTML = `
-        <td title="${refFull}">${refShort}</td>
-        <td>${dt}</td>
-        <td>${b.name || ''}</td>
-        <td>${(b.total || 0).toLocaleString()} FCFA</td>
-        <td>${bmName}</td>
-        <td style="text-align:center">${statusIcon}</td>
-        <td class="cal-actions" style="text-align:center"></td>
-      `;
-
-      const actionsTd = tr.querySelector('.cal-actions');
-
-      // Bouton valider = passer en "paid"
-      const okBtn = document.createElement('button');
-      okBtn.textContent = '✅';
-      okBtn.className = 'cal-action-btn';
-      okBtn.onclick = () => {
-        const d2 = db();
-        const idx = d2.bookings.findIndex(x => x.ref === b.ref);
-        if (idx >= 0) {
-          d2.bookings[idx].status = 'paid';
-          save(d2);
-          renderCalendar();
-        }
-      };
-
-      // Bouton annuler = SUPPRIMER la réservation après confirmation
-      const cancelBtn = document.createElement('button');
-      cancelBtn.textContent = '❌';
-      cancelBtn.className = 'cal-action-btn';
-      cancelBtn.onclick = () => {
-        const ok = confirm("Confirmer l'annulation et la suppression de cette réservation ?");
-        if (!ok) return;
-
-        const d2 = db();
-        const idx = d2.bookings.findIndex(x => x.ref === b.ref);
-        if (idx >= 0) {
-          const bk = d2.bookings[idx];
-
-          // 1. On supprime la réservation
-          d2.bookings.splice(idx, 1);
-
-          // 2. On remet le créneau dans les dispos du beatmaker
-          if (bk.beatmakerId && bk.datetime) {
-            d2.availability = d2.availability || {};
-            d2.availability[bk.beatmakerId] = d2.availability[bk.beatmakerId] || [];
-            const iso = bk.datetime;
-            if (!d2.availability[bk.beatmakerId].includes(iso)) {
-              d2.availability[bk.beatmakerId].push(iso);
-            }
-          }
-
-          // 3. Sauvegarde + broadcast + refresh UI
-          save(d2);
-          try { broadcastAvailability(d2.availability || {}); } catch (_) {}
-          renderCalendar();
-          try { renderDispos(); } catch (_) {}
-        }
-      };
-
-      actionsTd.appendChild(okBtn);
-      actionsTd.appendChild(cancelBtn);
-      tb.appendChild(tr);
-    });
-
-    tbl.appendChild(tb);
-    box.innerHTML = '';
-    box.appendChild(tbl);
-  } catch (e) {
-    console.error('Erreur dans renderCalendar()', e);
-    box.innerHTML = '<small class="note">Erreur lors du chargement du calendrier.</small>';
+  if (!d.bookings || !d.bookings.length) {
+    box.innerHTML = '<small class="note">Aucune réservation.</small>';
+    return;
   }
+
+  // date courte : JJ/MM/AA HH:MM (sans secondes)
+  const formatDate = (iso) => {
+    const dt = new Date(iso);
+    const date = dt.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    });
+    const time = dt.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    return `${date} ${time}`;
+  };
+
+  const tbl = document.createElement('table');
+  tbl.innerHTML = `
+    <thead>
+      <tr>
+        <th>Ref</th>
+        <th>Date</th>
+        <th>Cl</th>
+        <th>Total</th>
+        <th>Bm</th>
+        <th>St</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+  `;
+  const tb = document.createElement('tbody');
+
+  // du plus récent au plus ancien
+  d.bookings.slice().reverse().forEach((b, idxFromEnd) => {
+    const realIndex = d.bookings.length - 1 - idxFromEnd;
+    const tr = document.createElement('tr');
+
+    const bm =
+      (d.beatmakers.find((x) => x.id === b.beatmakerId) || {}).name || '';
+
+    // icône de statut
+    let statusIcon = '⏳';
+    if (b.status === 'paid') statusIcon = '✅';
+    else if (b.status === 'cancelled') statusIcon = '❌';
+
+    // Ref abrégée pour l'affichage, complète pour le tooltip & l'export
+    const fullRef = b.ref || '';
+    const shortRef = fullRef.length > 14 ? fullRef.slice(0, 14) + '…' : fullRef;
+
+    tr.innerHTML = `
+      <td class="cal-ref" title="${fullRef}">${shortRef}</td>
+      <td>${formatDate(b.datetime)}</td>
+      <td class="cal-client">${b.name}</td>
+      <td>${b.total.toLocaleString()} FCFA</td>
+      <td>${bm}</td>
+      <td>${statusIcon}</td>
+      <td class="cal-actions"></td>
+    `;
+
+    const tdActions = tr.querySelector('.cal-actions');
+
+    // bouton ✅
+    const btnOk = document.createElement('button');
+    btnOk.className = 'cal-btn cal-btn-ok';
+    btnOk.textContent = '✅';
+    btnOk.title = 'Marquer comme payé';
+    btnOk.onclick = () => {
+      let x = db();
+      x.bookings[realIndex].status = 'paid';
+      save(x);
+      renderCalendar();
+    };
+
+    // bouton ❌
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'cal-btn cal-btn-cancel';
+    btnCancel.textContent = '❌';
+    btnCancel.title = 'Annuler la réservation';
+    btnCancel.onclick = () => {
+      let x = db();
+      const bk = x.bookings[realIndex];
+
+      // si on annule, on rend le créneau à nouveau disponible
+      if (bk.status !== 'cancelled') {
+        x.availability = x.availability || {};
+        x.availability[bk.beatmakerId] = x.availability[bk.beatmakerId] || [];
+        if (!x.availability[bk.beatmakerId].includes(bk.datetime)) {
+          x.availability[bk.beatmakerId].push(bk.datetime);
+        }
+      }
+
+      x.bookings[realIndex].status = 'cancelled';
+      save(x);
+      renderCalendar();
+      renderDispos();
+    };
+
+    tdActions.appendChild(btnOk);
+    tdActions.appendChild(btnCancel);
+    tb.appendChild(tr);
+  });
+
+  tbl.appendChild(tb);
+  box.innerHTML = '';
+  box.appendChild(tbl);
 }
 
 // ---- Disponibilités (add/list/delete per beatmaker) ----
-function renderDispos() {
-  const box = document.getElementById('disposBox');
-  const d = db();
-  box.innerHTML = '';
-
-  (d.beatmakers || []).forEach((b) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'service';
-    wrap.innerHTML = `
-      <h4>${b.name}</h4>
+function renderDispos(){
+  const box=document.getElementById('disposBox'); const d=db(); box.innerHTML='';
+  (d.beatmakers||[]).forEach((b)=>{
+    const wrap=document.createElement('div'); wrap.className='service';
+    wrap.innerHTML=`<h4>${b.name}</h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
         <div>
           <label style="display:block;font-size:12px;color:#9ca3af">Nouveau créneau</label>
@@ -470,279 +464,65 @@ function renderDispos() {
       <div style="margin-top:10px">
         <strong>Créneaux disponibles</strong>
         <div id="list-${b.id}" style="margin-top:6px"></div>
-      </div>
-    `;
+      </div>`;
     box.appendChild(wrap);
 
-    function renderList() {
-      const target = wrap.querySelector(`#list-${b.id}`);
-      target.innerHTML = '';
-      const arr = (db().availability || {})[b.id] || [];
-      if (arr.length === 0) {
-        target.innerHTML = '<small class="note">Aucun créneau enregistré.</small>';
-        return;
-      }
-      arr.slice().sort().forEach((iso) => {
-        const row = document.createElement('div');
-        row.className = 'item';
-        const dt = new Date(iso);
-        const f = dt.toLocaleString('fr-FR', {
-          weekday: 'short',
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        }).replace(',', '');
-        row.innerHTML = `<div>${f}</div>`;
-        const del = document.createElement('button');
-        del.className = 'tab';
-        del.textContent = 'Supprimer';
-        del.onclick = () => {
-          let x = db();
-          const xs = (x.availability[b.id] || []);
-          x.availability[b.id] = xs.filter(s => s !== iso);
-          save(x);
-          broadcastAvailability(x.availability);
-          renderList();
-        };
-        row.appendChild(del);
-        target.appendChild(row);
+    function renderList(){
+      const target=wrap.querySelector(`#list-${b.id}`);
+      target.innerHTML='';
+      const arr=(db().availability||{})[b.id]||[];
+      if(arr.length===0){ target.innerHTML='<small class="note">Aucun créneau enregistré.</small>'; return; }
+      arr.slice().sort().forEach((iso)=>{
+        const row=document.createElement('div'); row.className='item';
+        const dt=new Date(iso);
+        const f=dt.toLocaleString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
+        row.innerHTML=`<div>${f}</div>`;
+        const del=document.createElement('button'); del.className='tab'; del.textContent='Supprimer';
+        del.onclick=()=>{ let x=db(); const xs=(x.availability[b.id]||[]); x.availability[b.id]=xs.filter(s=>s!==iso); save(x); broadcastAvailability(x.availability); renderList(); };
+        row.appendChild(del); target.appendChild(row);
       });
     }
-
     renderList();
 
-    wrap.querySelector(`#add-${b.id}`).onclick = () => {
-      const inp = wrap.querySelector(`#slot-${b.id}`);
-      const val = inp.value;
-      if (!val) { alert('Choisis une date/heure'); return; }
-      let x = db();
-      x.availability = x.availability || {};
-      x.availability[b.id] = x.availability[b.id] || [];
-      const iso = new Date(val).toISOString();
-      if (!x.availability[b.id].includes(iso)) {
-        x.availability[b.id].push(iso);
-        save(x);
-        broadcastAvailability(x.availability);
-        renderList();
-        inp.value = '';
-      } else {
-        alert('Ce créneau existe déjà.');
-      }
+    wrap.querySelector(`#add-${b.id}`).onclick=()=>{
+      const inp=wrap.querySelector(`#slot-${b.id}`);
+      const val=inp.value; if(!val){ alert('Choisis une date/heure'); return; }
+      let x=db(); x.availability=x.availability||{}; x.availability[b.id]=x.availability[b.id]||[];
+      const iso=new Date(val).toISOString();
+      if(!x.availability[b.id].includes(iso)){
+        x.availability[b.id].push(iso); save(x); broadcastAvailability(x.availability); renderList(); inp.value='';
+      } else { alert('Ce créneau existe déjà.'); }
     };
   });
 }
-
-function broadcastAvailability(av) {
-  localStorage.setItem('melodia_availability', JSON.stringify(av));
-}
+function broadcastAvailability(av){ localStorage.setItem('melodia_availability', JSON.stringify(av)); }
 
 // ---- Beatmakers CRUD ----
-function renderBmEditor() {
-  const box = document.getElementById('bmEditor');
-  const d = db();
-  box.innerHTML = '';
-
-  (d.beatmakers || []).forEach((b, idx) => {
-    const row = document.createElement('div');
-    row.className = 'service';
-    row.innerHTML = `
-      <input value="${b.name}" style="width:220px;margin-right:8px"/>
-      <input value="${b.skills || ''}" style="width:60%" placeholder="Spécialités"/>
-    `;
-    const del = document.createElement('button');
-    del.className = 'tab';
-    del.textContent = 'Supprimer';
-    del.onclick = () => {
-      let x = db();
-      x.beatmakers.splice(idx, 1);
-      save(x);
-      renderBmEditor();
-    };
-    const ins = row.querySelectorAll('input');
-    ins[0].oninput = () => { let x = db(); x.beatmakers[idx].name = ins[0].value; save(x); };
-    ins[1].oninput = () => { let x = db(); x.beatmakers[idx].skills = ins[1].value; save(x); };
-    row.appendChild(del);
-    box.appendChild(row);
+function renderBmEditor(){
+  const box=document.getElementById('bmEditor'); const d=db(); box.innerHTML='';
+  (d.beatmakers||[]).forEach((b,idx)=>{
+    const row=document.createElement('div'); row.className='service';
+    row.innerHTML=`<input value="${b.name}" style="width:220px;margin-right:8px"/><input value="${b.skills||''}" style="width:60%" placeholder="Spécialités"/>`;
+    const del=document.createElement('button'); del.className='tab'; del.textContent='Supprimer';
+    del.onclick=()=>{ let x=db(); x.beatmakers.splice(idx,1); save(x); renderBmEditor(); };
+    const ins=row.querySelectorAll('input');
+    ins[0].oninput=()=>{ let x=db(); x.beatmakers[idx].name=ins[0].value; save(x); };
+    ins[1].oninput=()=>{ let x=db(); x.beatmakers[idx].skills=ins[1].value; save(x); };
+    row.appendChild(del); box.appendChild(row);
   });
-
-  const add = document.createElement('button');
-  add.className = 'tab';
-  add.textContent = 'Ajouter un beatmaker';
-  add.onclick = () => {
-    let x = db();
-    (x.beatmakers || []).push({ id: "bm-" + Date.now(), name: "Nouveau", skills: "" });
-    save(x);
-    renderBmEditor();
-  };
+  const add=document.createElement('button'); add.className='tab'; add.textContent='Ajouter un beatmaker';
+  add.onclick=()=>{ let x=db(); (x.beatmakers||[]).push({id:"bm-"+Date.now(),name:"Nouveau",skills:""}); save(x); renderBmEditor(); };
   box.appendChild(add);
 }
 
 // ---- Export CSV ----
-function exportCsv() {
-  const d = db();
-  const rows = [["ref", "date", "client", "phone", "email", "total", "beatmaker", "status"]];
-  d.bookings.forEach(b => {
-    rows.push([
-      b.ref,
-      new Date(b.datetime).toISOString(),
-      b.name,
-      b.phone,
-      b.email,
-      b.total,
-      (d.beatmakers.find(x => x.id === b.beatmakerId) || {}).name || "",
-      b.status
-    ]);
+function exportCsv(){
+  const d=db(); const rows=[["ref","date","client","phone","email","total","beatmaker","status"]];
+  d.bookings.forEach(b=>{
+    rows.push([b.ref,new Date(b.datetime).toISOString(),b.name,b.phone,b.email,b.total,(d.beatmakers.find(x=>x.id===b.beatmakerId)||{}).name||"",b.status]);
   });
-  const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = "reservations.csv";
-  a.click();
-  URL.revokeObjectURL(url);
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\\n");
+  const blob=new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download="reservations.csv"; a.click(); URL.revokeObjectURL(url);
 }
-
-function exportServices() {
-  const d = db();
-  const blob = new Blob(
-    [JSON.stringify({ categories: d.categories }, null, 2)],
-    { type: "application/json" }
-  );
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = "services.json";
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// ---- Export calendrier (bouton dans l'onglet calendrier) ----
-(function setupCalExport() {
-  const btn = document.getElementById('calExportBtn');
-  if (!btn) return;
-  btn.onclick = function () {
-    const d = db() || {};
-    const rows = [["ref", "date", "client", "phone", "email", "total", "beatmaker", "status"]];
-    (d.bookings || []).forEach(b => {
-      rows.push([
-        b.ref,
-        new Date(b.datetime).toISOString(),
-        b.name,
-        b.phone,
-        b.email,
-        b.total,
-        (d.beatmakers.find(x => x.id === b.beatmakerId) || {}).name || "",
-        b.status
-      ]);
-    });
-    const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = "calendrier.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-})();
-
-// ---- Tabs ----
-function setupTabs() {
-  const tabs = document.querySelectorAll('.tab[data-tab]');
-  const sections = document.querySelectorAll('section[id^="tab-"]');
-  if (!tabs.length || !sections.length) return;
-
-  tabs.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.tab;
-      tabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      sections.forEach(sec => {
-        sec.style.display = (sec.id === 'tab-' + id) ? 'block' : 'none';
-      });
-    });
-  });
-}
-
-// ---- Initialisation de l'app admin ----
-function init() {
-  renderSvcEditor();
-  renderStats();
-  renderCalendar();
-  renderDispos();
-  renderBmEditor();
-
-  const exportCsvBtn = document.getElementById('exportCsv');
-  if (exportCsvBtn) exportCsvBtn.onclick = exportCsv;
-  const exportServicesBtn = document.getElementById('exportServices');
-  if (exportServicesBtn) exportServicesBtn.onclick = exportServices;
-}
-
-// ---- Authentification admin (Firebase Auth) ----
-(async function setupAdminAuth() {
-  const loginBox   = document.getElementById('login');
-  const appBox     = document.getElementById('adminApp');
-  const emailInput = document.getElementById('adminEmail');
-  const pwdInput   = document.getElementById('adminPwd');
-  const btn        = document.getElementById('loginBtn');
-
-  const f = await __initFirebaseAdmin(); // doit fournir auth et helpers
-
-  // Bouton "Se connecter"
-  if (btn) {
-    btn.onclick = async () => {
-      const email = (emailInput.value || '').trim();
-      const pwd   = (pwdInput.value   || '').trim();
-      if (!email || !pwd) {
-        alert("Merci de saisir l'email et le mot de passe.");
-        return;
-      }
-      try {
-        btn.disabled = true;
-        const old = btn.textContent;
-        btn.textContent = 'Connexion...';
-        await f.signInWithEmailAndPassword(f.auth, email, pwd);
-        btn.textContent = old;
-        btn.disabled = false;
-      } catch (e) {
-        console.error(e);
-        alert("Connexion impossible. Vérifie l'email et le mot de passe.");
-        btn.disabled = false;
-        btn.textContent = 'Se connecter';
-      }
-    };
-  }
-
-  // Suivi de l'état d'authentification
-  if (f.onAuthStateChanged) {
-    f.onAuthStateChanged(f.auth, (user) => {
-      if (user) {
-        if (loginBox) loginBox.style.display = 'none';
-        if (appBox)   appBox.style.display   = 'block';
-        init();
-        setupTabs();
-      } else {
-        if (appBox)   appBox.style.display   = 'none';
-        if (loginBox) loginBox.style.display = 'block';
-      }
-    });
-  }
-
-  // Bouton "Se déconnecter" dans l'app
-  const logoutBtn = document.getElementById('logoutBtn');
-  if (logoutBtn && f.signOut) {
-    logoutBtn.onclick = async () => {
-      try {
-        await f.signOut(f.auth);
-        if (appBox)   appBox.style.display   = 'none';
-        if (loginBox) loginBox.style.display = 'block';
-      } catch (e) {
-        console.error('Erreur lors de la déconnexion', e);
-        alert("Erreur lors de la déconnexion.");
-      }
-    };
-  }
-})();
+function exportServices(){ const d=db(); const blob=new Blob([JSON.stringify({categories:d.categories},null,2)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download="services.json"; a.click(); URL.revokeObjectURL(url);}

@@ -208,6 +208,18 @@ async function ensureLocalFromCloud() {
       loginBox.style.display = 'block';
     }
   });
+  const logoutBtn = document.getElementById('logoutBtn');
+if (logoutBtn) {
+  logoutBtn.onclick = async () => {
+    try {
+      await f.signOut(f.auth);
+      alert("Déconnecté avec succès.");
+    } catch (e) {
+      console.error(e);
+      alert("Erreur lors de la déconnexion.");
+    }
+  };
+}
 })();
 
 // Tabs

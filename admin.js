@@ -162,7 +162,19 @@ document.querySelectorAll('.tab[data-tab]').forEach(btn=>btn.addEventListener('c
   const id=btn.dataset.tab; document.querySelectorAll('section[id^=tab-]').forEach(s=>s.style.display='none'); document.getElementById('tab-'+id).style.display='block';
 }));
 
-function init(){renderSvcEditor();renderStats();renderCalendar();renderDispos();renderBmEditor();document.getElementById('exportCsv').onclick=exportCsv;document.getElementById('exportServices').onclick=exportServices;}
+function init(){
+  renderSvcEditor();
+  renderStats();
+  renderCalendar();
+  renderDispos();
+  renderBmEditor();
+
+  document.getElementById('exportCsv').onclick = exportCsv;
+  document.getElementById('exportServices').onclick = exportServices;
+
+  const calExportBtn = document.getElementById('calExportBtn');
+  if (calExportBtn) calExportBtn.onclick = exportCsv;
+}
 
 // ---- Services Editor (live sync) ----
 function renderSvcEditor(){

@@ -221,7 +221,21 @@ document.getElementById('confirmBtn').onclick=()=>{
   if(!bm||!dt||!name||!phone){ alert("Merci de remplir Beatmaker, créneau, nom et téléphone."); return; }
   const ref=formatRef(); const total=(data.cart_items||[]).reduce((s,a)=>s+(a.price||0),0);
   const items=(data.cart_items||[]).map(i=>`${i.title} (${i.label}) - ${i.price} FCFA`).join(" | ");
-  const msg=`Bonjour Melodia Studio, je confirme ma réservation ${ref} : ${items}. Beatmaker : ${bm.name}. Date : ${new Date(dt).toLocaleString('fr-FR')}. Nom : ${name}. Tel : ${phone}. Email : ${email||'-'}. Total : ${total.toLocaleString()} FCFA.`;
+  const msg = `Bonjour Melodia Studio, je confirme ma réservation ${ref} : 
+
+${items}
+
+Beatmaker : ${bm.name}
+
+Date : ${new Date(dt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' à')}
+
+Nom : ${name}
+
+Tel : ${phone}
+
+Email : ${email || '-'}
+
+Total : ${total.toLocaleString()} FCFA`;
   const bookingObj = {ref,items:data.cart_items,total,beatmakerId:bm.id,datetime:dt,name,phone,email,status:"pending"};
   (data.bookings||=[]).push(bookingObj);
   // remove slot

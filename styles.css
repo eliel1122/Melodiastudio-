@@ -120,3 +120,47 @@ td,th{border-bottom:1px solid rgba(255,255,255,.08);padding:8px;text-align:left}
     word-break: break-word;   /* casse les mots si besoin */
   }
 }
+/* Boutons d'action dans le calendrier */
+.cal-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.cal-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  background: rgba(148, 163, 184, 0.15);
+  color: #e5e7eb;
+}
+
+.cal-btn-ok {
+  background: rgba(34, 197, 94, 0.18);   /* vert léger */
+}
+
+.cal-btn-cancel {
+  background: rgba(248, 113, 113, 0.18); /* rouge léger */
+}
+
+/* Lisibilité sur mobile */
+@media (max-width: 768px) {
+  #calBox table {
+    font-size: 11px;
+  }
+
+  #calBox th,
+  #calBox td {
+    padding: 4px 6px;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .cal-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+}

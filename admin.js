@@ -289,26 +289,17 @@ function renderCalendar() {
   const box = document.getElementById('calBox');
   const d = db();
 
-  if (!d.bookings || !d.bookings.length) {
+  if (!d || !Array.isArray(d.bookings) || d.bookings.length === 0) {
     box.innerHTML = '<small class="note">Aucune réservation.</small>';
     return;
   }
 
-  // date courte : JJ/MM/AA HH:MM (sans secondes)
-  const formatDate = (iso) => {
-    const dt = new Date(iso);
-    const date = dt.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
-    });
-    const time = dt.toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-    return `${date} ${time}`;
-  };
+  // On n'affiche PAS les réservations annulées
+  const visible = d.bookings.filter(b => b.status !== 'cancelled');
+  if (visible.length === 0) {
+    box.innerHTML = '<small class="note">Aucune réservation à afficher.</small>';
+    return;
+  }
 
   const tbl = document.createElement('table');
   tbl.innerHTML = `
@@ -319,80 +310,94 @@ function renderCalendar() {
         <th>Cl</th>
         <th>Total</th>
         <th>Bm</th>
-        <th>St</th>
+        <th>Statut</th>
         <th>Actions</th>
       </tr>
     </thead>
   `;
   const tb = document.createElement('tbody');
 
-  // du plus récent au plus ancien
-  d.bookings.slice().reverse().forEach((b, idxFromEnd) => {
-    const realIndex = d.bookings.length - 1 - idxFromEnd;
+  // On affiche de la plus récente à la plus ancienne
+  visible.slice().reverse().forEach(b => {
     const tr = document.createElement('tr');
 
-    const bm =
-      (d.beatmakers.find((x) => x.id === b.beatmakerId) || {}).name || '';
+    const dt = new Date(b.datetime).toLocaleString('fr-FR', {
+      year: '2-digit',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
 
-    // icône de statut
-    let statusIcon = '⏳';
-    if (b.status === 'paid') statusIcon = '✅';
-    else if (b.status === 'cancelled') statusIcon = '❌';
+    const bm = (d.beatmakers.find(x => x.id === b.beatmakerId) || {}).name || '';
 
-    // Ref abrégée pour l'affichage, complète pour le tooltip & l'export
-    const fullRef = b.ref || '';
-    const shortRef = fullRef.length > 14 ? fullRef.slice(0, 14) + '…' : fullRef;
+    // Ref abrégée mais export CSV garde la ref complète
+    const shortRef = b.ref && b.ref.length > 14 ? b.ref.slice(0, 14) + '…' : (b.ref || '');
+
+    const statusIcon =
+      b.status === 'paid' ? '✅' :
+      b.status === 'cancelled' ? '❌' :
+      '⏳';
 
     tr.innerHTML = `
-      <td class="cal-ref" title="${fullRef}">${shortRef}</td>
-      <td>${formatDate(b.datetime)}</td>
-      <td class="cal-client">${b.name}</td>
-      <td>${b.total.toLocaleString()} FCFA</td>
+      <td title="${b.ref || ''}">${shortRef}</td>
+      <td>${dt}</td>
+      <td>${(b.name || '').slice(0, 10)}</td>
+      <td>${(b.total || 0).toLocaleString()} FCFA</td>
       <td>${bm}</td>
-      <td>${statusIcon}</td>
-      <td class="cal-actions"></td>
+      <td style="text-align:center">${statusIcon}</td>
+      <td></td>
     `;
 
-    const tdActions = tr.querySelector('.cal-actions');
+    // Boutons actions
+    const actionsTd = tr.lastElementChild;
 
-    // bouton ✅
-    const btnOk = document.createElement('button');
-    btnOk.className = 'cal-btn cal-btn-ok';
-    btnOk.textContent = '✅';
-    btnOk.title = 'Marquer comme payé';
-    btnOk.onclick = () => {
-      let x = db();
-      x.bookings[realIndex].status = 'paid';
-      save(x);
+    const okBtn = document.createElement('button');
+    okBtn.textContent = '✅';
+    okBtn.style.marginRight = '6px';
+    okBtn.onclick = () => {
+      let d2 = db();
+      const idx = d2.bookings.findIndex(x => x.ref === b.ref);
+      if (idx === -1) return;
+      d2.bookings[idx].status = 'paid';
+      save(d2);
       renderCalendar();
+      try { renderStats(); } catch (_) {}
     };
 
-    // bouton ❌
-    const btnCancel = document.createElement('button');
-    btnCancel.className = 'cal-btn cal-btn-cancel';
-    btnCancel.textContent = '❌';
-    btnCancel.title = 'Annuler la réservation';
-    btnCancel.onclick = () => {
-      let x = db();
-      const bk = x.bookings[realIndex];
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '❌';
+    cancelBtn.onclick = () => {
+      // POPUP DE CONFIRMATION
+      const ok = confirm(`Confirmer l'annulation et la suppression de la réservation ${b.ref} du calendrier ?`);
+      if (!ok) return;
 
-      // si on annule, on rend le créneau à nouveau disponible
-      if (bk.status !== 'cancelled') {
-        x.availability = x.availability || {};
-        x.availability[bk.beatmakerId] = x.availability[bk.beatmakerId] || [];
-        if (!x.availability[bk.beatmakerId].includes(bk.datetime)) {
-          x.availability[bk.beatmakerId].push(bk.datetime);
+      let d2 = db();
+      const idx = d2.bookings.findIndex(x => x.ref === b.ref);
+      if (idx === -1) return;
+
+      const bk = d2.bookings[idx];
+      bk.status = 'cancelled';
+
+      // On remet le créneau dans les disponibilités
+      d2.availability = d2.availability || {};
+      if (bk.beatmakerId && bk.datetime) {
+        d2.availability[bk.beatmakerId] = d2.availability[bk.beatmakerId] || [];
+        const iso = bk.datetime;
+        if (!d2.availability[bk.beatmakerId].includes(iso)) {
+          d2.availability[bk.beatmakerId].push(iso);
         }
       }
 
-      x.bookings[realIndex].status = 'cancelled';
-      save(x);
+      save(d2);
+      try { broadcastAvailability(d2.availability); } catch (_) {}
       renderCalendar();
-      renderDispos();
+      try { renderDispos(); } catch (_) {}
     };
 
-    tdActions.appendChild(btnOk);
-    tdActions.appendChild(btnCancel);
+    actionsTd.appendChild(okBtn);
+    actionsTd.appendChild(cancelBtn);
+
     tb.appendChild(tr);
   });
 

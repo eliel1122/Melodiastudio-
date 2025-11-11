@@ -16,20 +16,40 @@ let __LAST_LOCAL_PUSH_AT = 0;
 // Initialise Firebase + Firestore (une seule fois)
 async function __initFirebaseAdmin() {
   if (__FB_ADMIN) return __FB_ADMIN;
+
   const appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
   const fsMod  = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js');
+  const authMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js');
 
-  const app = appMod.initializeApp(FIREBASE_CONFIG);
-  const db  = fsMod.getFirestore(app);
+  const firebaseConfig = {
+    apiKey: "AIzaSyCQeFRyWNQnFUX4GGeT9bYa5PA8lFlOSdY",
+    authDomain: "melodiastudio-f2d00.firebaseapp.com",
+    projectId: "melodiastudio-f2d00",
+    storageBucket: "melodiastudio-f2d00.firebasestorage.app",
+    messagingSenderId: "227814839561",
+    appId: "1:227814839561:web:90bda938bb2de4cdcdefd8",
+    measurementId: "G-9WCKN77S0B"
+  };
+
+  const app  = appMod.initializeApp(firebaseConfig);
+  const db   = fsMod.getFirestore(app);
+  const auth = authMod.getAuth(app);
 
   __FB_ADMIN = {
     app,
     db,
-    doc:       fsMod.doc,
-    getDoc:    fsMod.getDoc,
-    setDoc:    fsMod.setDoc,
+    auth,
+    // Firestore
+    doc: fsMod.doc,
+    getDoc: fsMod.getDoc,
+    setDoc: fsMod.setDoc,
     onSnapshot: fsMod.onSnapshot,
+    // Auth
+    signInWithEmailAndPassword: authMod.signInWithEmailAndPassword,
+    onAuthStateChanged: authMod.onAuthStateChanged,
+    signOut: authMod.signOut,
   };
+
   return __FB_ADMIN;
 }
 

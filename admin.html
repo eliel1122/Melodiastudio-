@@ -2,9 +2,21 @@
 <!doctype html><html lang="fr"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Admin — Melodia</title><link rel="stylesheet" href="styles.css"/></head><body>
-<div id="login" class="login"><h2>Connexion admin</h2><p class="note">Mot de passe requis.</p>
-<input id="pwd" type="password" placeholder="Mot de passe"/><button class="tab" id="loginBtn" style="margin-top:10px;width:100%">Se connecter</button>
-<p class="note" style="margin-top:8px"><a href="index.html">← Retour à l'accueil</a></p></div>
+<div id="login" class="login">
+  <h2>Connexion admin</h2>
+  <input id="adminEmail" type="email" placeholder="Email admin">
+  <input id="adminPwd" type="password" placeholder="Mot de passe">
+  <button id="loginBtn" type="button">Se connecter</button>
+  <p class="note"><a href="index.html">← Retour à l'accueil</a></p>
+</div>
+
+<div id="adminApp" style="display:none" class="container">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <p><a href="index.html">← Retour à l'accueil</a></p>
+    <button id="logoutBtn" class="tab" type="button">Se déconnecter</button>
+  </div>
+  <!-- le reste de ton admin (tabs, sections services/stats/calendrier/dispos/etc.) reste identique -->
+
 
 <div id="adminApp" style="display:none" class="container">
   <p><a href="index.html">← Retour à l'accueil</a></p>

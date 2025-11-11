@@ -157,24 +157,58 @@ async function ensureLocalFromCloud() {
     console.error('ensureLocalFromCloud error', e);
   }
 }
-const PASS = "melodia2025";
+// ---- Authentification admin (Firebase Auth) ----
+(async function setupAdminAuth() {
+  const loginBox   = document.getElementById('login');
+  const appBox     = document.getElementById('adminApp');
+  const emailInput = document.getElementById('adminEmail');
+  const pwdInput   = document.getElementById('adminPwd');
+  const btn        = document.getElementById('loginBtn');
 
-document.getElementById('loginBtn').onclick = async () => {
-  const v = (document.getElementById('pwd').value || '').trim();
-  if (v === PASS) {
-    // On affiche l'admin
-    document.getElementById('login').style.display = 'none';
-    document.getElementById('adminApp').style.display = 'block';
+  const f = await __initFirebaseAdmin();
 
-    // 🔁 On récupère d'abord l'état Firestore → localStorage
-    await ensureLocalFromCloud();
+  // Écouteur sur le bouton "Se connecter"
+  btn.onclick = async () => {
+    const email = (emailInput.value || '').trim();
+    const pwd   = (pwdInput.value   || '').trim();
 
-    // Puis on lance l'UI admin avec ces données
-    init();
-  } else {
-    alert("Mot de passe incorrect.");
-  }
-};
+    if (!email || !pwd) {
+      alert("Merci de saisir l'email et le mot de passe.");
+      return;
+    }
+
+    try {
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = 'Connexion...';
+
+      await f.signInWithEmailAndPassword(f.auth, email, pwd);
+      // Si ça marche, onAuthStateChanged ci-dessous s’occupe d’afficher l’admin
+
+      btn.textContent = oldText;
+      btn.disabled = false;
+    } catch (e) {
+      console.error(e);
+      alert("Connexion impossible. Vérifie l'email ou le mot de passe.");
+      btn.disabled = false;
+      btn.textContent = 'Se connecter';
+    }
+  };
+
+  // Quand l’état de connexion change
+  f.onAuthStateChanged(f.auth, (user) => {
+    if (user) {
+      // Connecté → on montre l’app admin
+      loginBox.style.display = 'none';
+      appBox.style.display   = 'block';
+      init();
+    } else {
+      // Déconnecté → on affiche l’écran de login
+      appBox.style.display   = 'none';
+      loginBox.style.display = 'block';
+    }
+  });
+})();
 
 // Tabs
 document.querySelectorAll('.tab[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{

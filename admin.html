@@ -2,48 +2,12 @@
 <!doctype html><html lang="fr"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Admin — Melodia</title><link rel="stylesheet" href="styles.css"/></head><body>
-<div id="login" class="login">
-  <h2>Connexion admin</h2>
-
-  <input
-    id="adminEmail"
-    type="email"
-    placeholder="Email admin"
-    autocomplete="username"
-  />
-
-  <input
-    id="adminPwd"
-    type="password"
-    placeholder="Mot de passe"
-    autocomplete="current-password"
-  />
-
-  <button id="loginBtn">Se connecter</button>
-
-  <p class="note" style="margin-top:8px">
-    <a href="index.html">← Retour à l'accueil</a>
-  </p>
-</div>
+<div id="login" class="login"><h2>Connexion admin</h2><p class="note">Mot de passe requis.</p>
+<input id="pwd" type="password" placeholder="Mot de passe"/><button class="tab" id="loginBtn" style="margin-top:10px;width:100%">Se connecter</button>
+<p class="note" style="margin-top:8px"><a href="index.html">← Retour à l'accueil</a></p></div>
 
 <div id="adminApp" style="display:none" class="container">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
-    <p><a href="index.html" style="color:#fff;text-decoration:none;">← Retour à l'accueil</a></p>
-    <button id="logoutBtn" style="
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 8px;
-      color: #fff;
-      font-weight: 500;
-      padding: 6px 14px;
-      cursor: pointer;
-      backdrop-filter: blur(8px);
-      transition: all 0.3s;
-    " onmouseover="this.style.background='rgba(255,0,0,0.3)';"
-      onmouseout="this.style.background='rgba(255,255,255,0.1)';">
-      🚪 Se déconnecter
-    </button>
-  </div>
+  <p><a href="index.html">← Retour à l'accueil</a></p>
   <div class="tabs">
     <button class="tab active" data-tab="services">Services & Prix</button>
     <button class="tab" data-tab="stats">Stats</button>

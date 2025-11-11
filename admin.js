@@ -207,6 +207,7 @@ function exportServices(){ const d=db(); const blob=new Blob([JSON.stringify({ca
 function renderStats(){ const box=document.getElementById('statsBox'); const d=db(); const paid=d.bookings.filter(b=>b.status==="paid"); const pending=d.bookings.filter(b=>b.status==="pending"); const total=paid.reduce((s,a)=>s+a.total,0); box.innerHTML=`<p><strong>Réservations payées :</strong> ${paid.length} • <strong>CA :</strong> ${total.toLocaleString()} FCFA</p><p><strong>En attente :</strong> ${pending.length}</p>`;}
 
 // ---- Calendar (simplified list) ----
+// ---- Calendar (simplified list) ----
 function renderCalendar() {
   const box = document.getElementById('calBox');
   const d = db();
@@ -219,8 +220,13 @@ function renderCalendar() {
   const tbl = document.createElement('table');
   tbl.innerHTML =
     '<thead><tr>' +
-    '<th>Ref</th><th>Date</th><th>Client</th><th>Total</th>' +
-    '<th>Beatmaker</th><th>Statut</th><th>Actions</th>' +
+    '<th>Ref</th>' +
+    '<th>Date</th>' +
+    '<th>Client</th>' +
+    '<th>Total</th>' +
+    '<th>Beatmaker</th>' +
+    '<th>Statut</th>' +
+    '<th>Actions</th>' +
     '</tr></thead>';
 
   const tb = document.createElement('tbody');
@@ -230,6 +236,7 @@ function renderCalendar() {
     const dt = new Date(b.datetime).toLocaleString('fr-FR');
     const bm = (d.beatmakers.find(x => x.id === b.beatmakerId) || {}).name || '';
 
+    // colonnes principales
     tr.innerHTML =
       `<td>${b.ref}</td>` +
       `<td>${dt}</td>` +
@@ -238,21 +245,21 @@ function renderCalendar() {
       `<td>${bm}</td>` +
       `<td>${b.status || 'pending'}</td>`;
 
-    // Colonne Actions
+    // colonne Actions
     const tdActions = document.createElement('td');
 
-    // Bouton VALIDER
+    // --- Bouton VALIDER ---
     const btnOk = document.createElement('button');
     btnOk.textContent = 'Valider';
     btnOk.className = 'tab';
     btnOk.onclick = () => {
       let x = db();
       x.bookings[idx].status = 'paid';
-      save(x);
-      renderCalendar();
+      save(x);          // => push vers Firestore
+      renderCalendar(); // refresh affichage
     };
 
-    // Bouton ANNULER
+    // --- Bouton ANNULER ---
     const btnCancel = document.createElement('button');
     btnCancel.textContent = 'Annuler';
     btnCancel.className = 'tab';
@@ -263,26 +270,27 @@ function renderCalendar() {
       let x = db();
       const booking = x.bookings[idx];
 
-      // 1) statut = cancelled
+      // 1) on marque comme annulée
       booking.status = 'cancelled';
 
       // 2) on remet le créneau dans availability du bon beatmaker
       const bmId = booking.beatmakerId;
-      const slot = booking.datetime; // ISO string
+      const slotIso = booking.datetime; // string ISO déjà utilisé
 
       x.availability = x.availability || {};
       x.availability[bmId] = x.availability[bmId] || [];
 
-      if (!x.availability[bmId].includes(slot)) {
-        x.availability[bmId].push(slot);
+      if (!x.availability[bmId].includes(slotIso)) {
+        x.availability[bmId].push(slotIso);
       }
 
-      // 3) on sauvegarde + broadcast pour le site public
+      // 3) sauvegarde (=> Firestore) + broadcast au site public
       save(x);
       try { broadcastAvailability(x.availability); } catch (e) {}
 
-      // 4) refresh tableau
+      // 4) refresh UI admin (calendrier + onglet dispos)
       renderCalendar();
+      try { renderDispos(); } catch (e) {}
     };
 
     tdActions.appendChild(btnOk);

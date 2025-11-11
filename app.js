@@ -182,7 +182,7 @@ window.addEventListener('storage', (e)=>{
 // WhatsApp helper (returns if a window was opened)
 function tryOpenWhatsApp(msg){
   try{
-    const url=`https://wa.me/2250718415131?text=${encodeURIComponent(msg)}`;
+    const url=`https://wa.me/2250703387738?text=${encodeURIComponent(msg)}`;
     const w=window.open(url,'_blank');
     return !!w;
   }catch(e){ return false; }

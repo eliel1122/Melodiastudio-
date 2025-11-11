@@ -202,7 +202,25 @@ async function ensureLocalFromCloud() {
       btn.textContent = 'Se connecter';
     }
   };
+  // Bouton "Se déconnecter"
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.onclick = async () => {
+      try {
+        const f = await __initFirebaseAdmin();   // même init que pour le login
+        await f.signOut(f.auth);                 // déconnexion Firebase
 
+        // On masque l'app admin et on remet l'écran de login
+        const loginBox  = document.getElementById('login');
+        const appBox    = document.getElementById('adminApp');
+        if (appBox)   appBox.style.display   = 'none';
+        if (loginBox) loginBox.style.display = 'block';
+      } catch (e) {
+        console.error('Erreur lors de la déconnexion', e);
+        alert("Erreur lors de la déconnexion.");
+      }
+    };
+  }
   // Quand l’état de connexion change
   // --- Gestion de l’état de connexion ---
 f.onAuthStateChanged(f.auth, (user) => {

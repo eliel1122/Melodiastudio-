@@ -1,3 +1,11 @@
+window.addEventListener("DOMContentLoaded", () => {
+  const appEl = document.getElementById('adminApp');
+  const loginEl = document.getElementById('login');
+  if (appEl && loginEl) {
+    appEl.style.display = 'none';
+    loginEl.style.display = 'none';
+  }
+});
 /* === Firebase sync (ADMIN) === */
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCQeFRyWNQnFUX4GGeT9bYa5PA8lFlOSdY",

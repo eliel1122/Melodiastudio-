@@ -207,7 +207,68 @@ function exportServices(){ const d=db(); const blob=new Blob([JSON.stringify({ca
 function renderStats(){ const box=document.getElementById('statsBox'); const d=db(); const paid=d.bookings.filter(b=>b.status==="paid"); const pending=d.bookings.filter(b=>b.status==="pending"); const total=paid.reduce((s,a)=>s+a.total,0); box.innerHTML=`<p><strong>Réservations payées :</strong> ${paid.length} • <strong>CA :</strong> ${total.toLocaleString()} FCFA</p><p><strong>En attente :</strong> ${pending.length}</p>`;}
 
 // ---- Calendar (simplified list) ----
-function renderCalendar(){ const box=document.getElementById('calBox'); const d=db(); if(!d.bookings.length){ box.innerHTML='<small class="note">Aucune réservation.</small>'; return;} const tbl=document.createElement('table'); tbl.innerHTML='<thead><tr><th>Ref</th><th>Date</th><th>Client</th><th>Total</th><th>Beatmaker</th><th>Statut</th></tr></thead>'; const tb=document.createElement('tbody'); d.bookings.slice().reverse().forEach(b=>{ const tr=document.createElement('tr'); const dt=new Date(b.datetime).toLocaleString('fr-FR'); const bm=(d.beatmakers.find(x=>x.id===b.beatmakerId)||{}).name||''; tr.innerHTML=`<td>${b.ref}</td><td>${dt}</td><td>${b.name}</td><td>${b.total.toLocaleString()} FCFA</td><td>${bm}</td><td>${b.status}</td>`; tb.appendChild(tr);}); tbl.appendChild(tb); box.innerHTML=''; box.appendChild(tbl);}
+function renderCalendar() {
+  const box = document.getElementById('calBox');
+  const d = db();
+
+  if (!d.bookings.length) {
+    box.innerHTML = '<small class="note">Aucune réservation.</small>';
+    return;
+  }
+
+  const tbl = document.createElement('table');
+  tbl.innerHTML = '<thead><tr><th>Ref</th><th>Date</th><th>Client</th><th>Total</th><th>Beatmaker</th><th>Statut</th><th>Actions</th></tr></thead>';
+
+  const tb = document.createElement('tbody');
+
+  d.bookings.forEach((b, idx) => {
+    const tr = document.createElement('tr');
+    const dt = new Date(b.datetime).toLocaleString('fr-FR');
+    const bm = (d.beatmakers.find(x => x.id === b.beatmakerId) || {}).name || '';
+
+    tr.innerHTML =
+      `<td>${b.ref}</td>` +
+      `<td>${dt}</td>` +
+      `<td>${b.name}</td>` +
+      `<td>${b.total.toLocaleString()} FCFA</td>` +
+      `<td>${bm}</td>` +
+      `<td>${b.status || 'pending'}</td>`;
+
+    // Colonne Actions
+    const tdActions = document.createElement('td');
+
+    const btnOk = document.createElement('button');
+    btnOk.textContent = 'Valider';
+    btnOk.className = 'tab';
+    btnOk.onclick = () => {
+      let x = db();
+      x.bookings[idx].status = 'paid';   // utilisé dans les stats
+      save(x);
+      renderCalendar();
+    };
+
+    const btnCancel = document.createElement('button');
+    btnCancel.textContent = 'Annuler';
+    btnCancel.className = 'tab';
+    btnCancel.style.marginLeft = '6px';
+    btnCancel.onclick = () => {
+      if (!confirm('Annuler cette réservation ?')) return;
+      let x = db();
+      x.bookings[idx].status = 'cancelled'; // le site ne proposera plus ce créneau
+      save(x);
+      renderCalendar();
+    };
+
+    tdActions.appendChild(btnOk);
+    tdActions.appendChild(btnCancel);
+    tr.appendChild(tdActions);
+    tb.appendChild(tr);
+  });
+
+  tbl.appendChild(tb);
+  box.innerHTML = '';
+  box.appendChild(tbl);
+}
 
 // ---- Disponibilités (add/list/delete per beatmaker) ----
 function renderDispos(){

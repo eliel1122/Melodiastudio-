@@ -137,8 +137,24 @@ async function ensureLocalFromCloud() {
     console.error('ensureLocalFromCloud error', e);
   }
 }
-const PASS="melodia2025";
-document.getElementById('loginBtn').onclick=()=>{const v=(document.getElementById('pwd').value||'').trim();if(v===PASS){document.getElementById('login').style.display='none';document.getElementById('adminApp').style.display='block';init();}else alert("Mot de passe incorrect.");};
+const PASS = "melodia2025";
+
+document.getElementById('loginBtn').onclick = async () => {
+  const v = (document.getElementById('pwd').value || '').trim();
+  if (v === PASS) {
+    // On affiche l'admin
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('adminApp').style.display = 'block';
+
+    // 🔁 On récupère d'abord l'état Firestore → localStorage
+    await ensureLocalFromCloud();
+
+    // Puis on lance l'UI admin avec ces données
+    init();
+  } else {
+    alert("Mot de passe incorrect.");
+  }
+};
 
 // Tabs
 document.querySelectorAll('.tab[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{

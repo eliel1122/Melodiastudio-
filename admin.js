@@ -159,56 +159,7 @@ async function ensureLocalFromCloud() {
     console.error('ensureLocalFromCloud error', e);
   }
 }
-window.addEventListener('DOMContentLoaded', async () => {
-  const loginBox  = document.getElementById('login');
-  const adminBox  = document.getElementById('adminApp');
-  const emailInput = document.getElementById('adminEmail');
-  const pwdInput   = document.getElementById('adminPwd');
-  const loginBtn   = document.getElementById('loginBtn');
-  const logoutBtn  = document.getElementById('logoutBtn');
 
-  const fb = await __initFirebaseAdmin();
-
-  // Réagit automatiquement si l'admin est déjà connecté
-  fb.onAuthStateChanged(fb.auth, (user) => {
-    if (user) {
-      loginBox.style.display = 'none';
-      adminBox.style.display = 'block';
-      init(); // ton init() existant : tabs, stats, calendrier, etc.
-    } else {
-      adminBox.style.display = 'none';
-      loginBox.style.display = 'block';
-    }
-  });
-
-  loginBtn.onclick = async () => {
-    const email = (emailInput.value || '').trim();
-    const pwd   = (pwdInput.value   || '').trim();
-
-    if (!email || !pwd) {
-      alert("Merci de renseigner email et mot de passe.");
-      return;
-    }
-
-    try {
-      await fb.signInWithEmailAndPassword(fb.auth, email, pwd);
-      // onAuthStateChanged s’occupe d’afficher l’admin
-    } catch (e) {
-      console.error(e);
-      alert("Connexion impossible. Vérifie ton email / mot de passe.");
-    }
-  };
-
-  if (logoutBtn) {
-    logoutBtn.onclick = async () => {
-      try {
-        await fb.signOut(fb.auth);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-  }
-});
 
 
 // Tabs
@@ -471,3 +422,72 @@ function exportCsv(){
   const a=document.createElement('a'); a.href=url; a.download="reservations.csv"; a.click(); URL.revokeObjectURL(url);
 }
 function exportServices(){ const d=db(); const blob=new Blob([JSON.stringify({categories:d.categories},null,2)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download="services.json"; a.click(); URL.revokeObjectURL(url);}
+
+// === Authentification admin avec Firebase ===
+(async () => {
+  try {
+    const fb = await __initFirebaseAdmin();
+
+    const loginBox   = document.getElementById('login');
+    const adminBox   = document.getElementById('adminApp');
+    const emailInput = document.getElementById('adminEmail');
+    const pwdInput   = document.getElementById('adminPwd');
+    const loginBtn   = document.getElementById('loginBtn');
+    const logoutBtn  = document.getElementById('logoutBtn');
+
+    if (!loginBox || !adminBox || !emailInput || !pwdInput || !loginBtn) {
+      console.warn('[admin] Elements de login introuvables');
+      return;
+    }
+
+    // Suivi de l'état de connexion
+    fb.onAuthStateChanged(fb.auth, (user) => {
+      if (user) {
+        // Connecté
+        loginBox.style.display = 'none';
+        adminBox.style.display = 'block';
+        try {
+          init(); // ta fonction init() existante
+        } catch (e) {
+          console.error('[admin] Erreur dans init()', e);
+        }
+      } else {
+        // Déconnecté
+        adminBox.style.display = 'none';
+        loginBox.style.display = 'block';
+      }
+    });
+
+    // Connexion
+    loginBtn.onclick = async () => {
+      const email = (emailInput.value || '').trim();
+      const pwd   = (pwdInput.value   || '').trim();
+
+      if (!email || !pwd) {
+        alert("Merci de renseigner email et mot de passe.");
+        return;
+      }
+
+      try {
+        await fb.signInWithEmailAndPassword(fb.auth, email, pwd);
+        // onAuthStateChanged se charge d'afficher l'admin
+      } catch (e) {
+        console.error('[admin] Erreur de connexion', e);
+        alert("Connexion impossible. Vérifie ton email et ton mot de passe.");
+      }
+    };
+
+    // Déconnexion
+    if (logoutBtn) {
+      logoutBtn.onclick = async () => {
+        try {
+          await fb.signOut(fb.auth);
+        } catch (e) {
+          console.error('[admin] Erreur de déconnexion', e);
+        }
+      };
+    }
+  } catch (e) {
+    console.error('[admin] Erreur d\'initialisation Firebase', e);
+  }
+})();

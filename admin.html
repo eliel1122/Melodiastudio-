@@ -2,9 +2,29 @@
 <!doctype html><html lang="fr"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Admin — Melodia</title><link rel="stylesheet" href="styles.css"/></head><body>
-<div id="login" class="login"><h2>Connexion admin</h2><p class="note">Mot de passe requis.</p>
-<input id="pwd" type="password" placeholder="Mot de passe"/><button class="tab" id="loginBtn" style="margin-top:10px;width:100%">Se connecter</button>
-<p class="note" style="margin-top:8px"><a href="index.html">← Retour à l'accueil</a></p></div>
+<div id="login" class="login">
+  <h2>Connexion admin</h2>
+
+  <input
+    id="adminEmail"
+    type="email"
+    placeholder="Email admin"
+    autocomplete="username"
+  />
+
+  <input
+    id="adminPwd"
+    type="password"
+    placeholder="Mot de passe"
+    autocomplete="current-password"
+  />
+
+  <button id="loginBtn">Se connecter</button>
+
+  <p class="note" style="margin-top:8px">
+    <a href="index.html">← Retour à l'accueil</a>
+  </p>
+</div>
 
 <div id="adminApp" style="display:none" class="container">
   <p><a href="index.html">← Retour à l'accueil</a></p>

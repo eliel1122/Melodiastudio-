@@ -291,8 +291,8 @@ function renderCalendar() {
     const d = db() || {};
     const allBookings = Array.isArray(d.bookings) ? d.bookings : [];
 
-    // On n'affiche pas les réservations annulées
-    const visible = allBookings.filter(b => b.status !== 'cancelled');
+    // On masque les réservations annulées
+    const visible = allBookings.filter(b => b && b.status !== 'cancelled');
 
     if (!visible.length) {
       box.innerHTML = '<small class="note">Aucune réservation.</small>';
@@ -319,6 +319,7 @@ function renderCalendar() {
     visible.slice().reverse().forEach(b => {
       const tr = document.createElement('tr');
 
+      // Date / heure en JJ/MM/AA HH:MM
       const dt = new Date(b.datetime).toLocaleString('fr-FR', {
         year: '2-digit',
         month: '2-digit',
@@ -327,12 +328,15 @@ function renderCalendar() {
         minute: '2-digit'
       });
 
+      // Référence abrégée pour l'affichage, complète au survol
       const refFull = b.ref || '';
       const refShort = refFull.length > 13 ? refFull.slice(0, 13) + '…' : refFull;
 
-      const bm =
-        (d.beatmakers || []).find(x => x.id === b.beatmakerId)?.name || '';
+      // Nom du beatmaker
+      const bm = (d.beatmakers || []).find(x => x.id === b.beatmakerId);
+      const bmName = bm ? bm.name : '';
 
+      // Statut -> icône
       const statusIcon = b.status === 'paid' ? '✅' : '❌';
 
       tr.innerHTML = `
@@ -340,14 +344,14 @@ function renderCalendar() {
         <td>${dt}</td>
         <td>${b.name || ''}</td>
         <td>${(b.total || 0).toLocaleString()} FCFA</td>
-        <td>${bm}</td>
+        <td>${bmName}</td>
         <td style="text-align:center">${statusIcon}</td>
         <td class="cal-actions" style="text-align:center"></td>
       `;
 
       const actionsTd = tr.querySelector('.cal-actions');
 
-      // Bouton valider (paid)
+      // Bouton valider = passer en "paid"
       const okBtn = document.createElement('button');
       okBtn.textContent = '✅';
       okBtn.className = 'cal-action-btn';
@@ -361,24 +365,23 @@ function renderCalendar() {
         }
       };
 
-      // Bouton annuler = SUPPRIMER la réservation
+      // Bouton annuler = SUPPRIMER la réservation après confirmation
       const cancelBtn = document.createElement('button');
       cancelBtn.textContent = '❌';
       cancelBtn.className = 'cal-action-btn';
       cancelBtn.onclick = () => {
-        if (!confirm("Confirmer l'annulation et la suppression de cette réservation ?")) {
-          return;
-        }
+        const ok = confirm("Confirmer l'annulation et la suppression de cette réservation ?");
+        if (!ok) return;
 
         const d2 = db();
         const idx = d2.bookings.findIndex(x => x.ref === b.ref);
         if (idx >= 0) {
           const bk = d2.bookings[idx];
 
-          // On supprime la réservation
+          // 1. On supprime la réservation
           d2.bookings.splice(idx, 1);
 
-          // On remet le créneau dans les dispos du beatmaker
+          // 2. On remet le créneau dans les dispos du beatmaker
           if (bk.beatmakerId && bk.datetime) {
             d2.availability = d2.availability || {};
             d2.availability[bk.beatmakerId] = d2.availability[bk.beatmakerId] || [];
@@ -388,6 +391,7 @@ function renderCalendar() {
             }
           }
 
+          // 3. On sauvegarde + broadcast + rafraîchit l'UI
           save(d2);
           try { broadcastAvailability(d2.availability || {}); } catch (_) {}
           renderCalendar();
@@ -408,6 +412,7 @@ function renderCalendar() {
     box.innerHTML = '<small class="note">Erreur lors du chargement du calendrier.</small>';
   }
 }
+
 // ---- Disponibilités (add/list/delete per beatmaker) ----
 function renderDispos(){
   const box=document.getElementById('disposBox'); const d=db(); box.innerHTML='';

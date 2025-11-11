@@ -1,117 +1,112 @@
 /* === Firebase sync (ADMIN) === */
-let __FB_APP = null;
-let __JUST_PUSHED_LOCAL = 0;
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCQeFRyWNQnFUX4GGeT9bYa5PA8lFlOSdY",
+  authDomain: "melodiastudio-f2d00.firebaseapp.com",
+  projectId: "melodiastudio-f2d00",
+  storageBucket: "melodiastudio-f2d00.firebasestorage.app",
+  messagingSenderId: "227814839561",
+  appId: "1:227814839561:web:90bda938bb2de4cdcdefd8",
+  measurementId: "G-9WCKN77S0B"
+};
 
-async function __initFirebaseApp() {
-  if (__FB_APP) return __FB_APP;
-  const appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
-  const fsMod  = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js');
-  const firebaseConfig = {
-    apiKey: "AIzaSyCQeFRyWNQnFUX4GGeT9bYa5PA8lFlOSdY",
-    authDomain: "melodiastudio-f2d00.firebaseapp.com",
-    projectId: "melodiastudio-f2d00",
-    storageBucket: "melodiastudio-f2d00.firebasestorage.app",
-    messagingSenderId: "227814839561",
-    appId: "1:227814839561:web:90bda938bb2de4cdcdefd8",
-    measurementId: "G-9WCKN77S0B"
-  };
-  const app = appMod.initializeApp(firebaseConfig);
-  const db  = fsMod.getFirestore(app);
-  __FB_APP = { app, db, doc: fsMod.doc, setDoc: fsMod.setDoc };
-  return __FB_APP;
-}
-
-async function __cloudRefSite() {
-  const f = await __initFirebaseApp();
-  return f.doc(f.db, 'melodia', 'state');
-}
-
-// pousse tout le localStorage vers Firestore
-async function saveDataToCloud() {
-  try {
-    __JUST_PUSHED_LOCAL = Date.now();
-    const f = await __initFirebaseApp();
-    const ref = await __cloudRefSite();
-    const all = JSON.parse(localStorage.getItem('melodiaData') || '{}');
-    await f.setDoc(ref, all, { merge: false });
-  } catch(e) { console.error('Cloud save error', e); }
-}
-/* === Firebase sync (ADMIN) === */
 let __FB_ADMIN = null;
 let __SYNCING_FROM_CLOUD = false;
 let __LAST_LOCAL_PUSH_AT = 0;
 
+// Initialise Firebase + Firestore (une seule fois)
 async function __initFirebaseAdmin() {
   if (__FB_ADMIN) return __FB_ADMIN;
   const appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
   const fsMod  = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js');
-  const firebaseConfig = {
-    apiKey: "AIzaSyCQeFRyWNQnFUX4GGeT9bYa5PA8lFlOSdY",
-    authDomain: "melodiastudio-f2d00.firebaseapp.com",
-    projectId: "melodiastudio-f2d00",
-    storageBucket: "melodiastudio-f2d00.firebasestorage.app",
-    messagingSenderId: "227814839561",
-    appId: "1:227814839561:web:90bda938bb2de4cdcdefd8",
-    measurementId: "G-9WCKN77S0B"
-  };
-  const app = appMod.initializeApp(firebaseConfig);
+
+  const app = appMod.initializeApp(FIREBASE_CONFIG);
   const db  = fsMod.getFirestore(app);
+
   __FB_ADMIN = {
-    app, db,
-    doc: fsMod.doc,
-    getDoc: fsMod.getDoc,
-    setDoc: fsMod.setDoc,
-    onSnapshot: fsMod.onSnapshot
+    app,
+    db,
+    doc:       fsMod.doc,
+    getDoc:    fsMod.getDoc,
+    setDoc:    fsMod.setDoc,
+    onSnapshot: fsMod.onSnapshot,
   };
   return __FB_ADMIN;
 }
 
+// Référence vers melodia / state
 async function __cloudRef() {
   const f = await __initFirebaseAdmin();
-  return f.doc(f.db, 'melodia', 'state');
+  return f.doc(f.db, 'melodia', 'state');   // collection "melodia", doc "state"
 }
 
-// PUSH localStorage -> cloud
+// PUSH localStorage -> Firestore
 async function __pushLocalToCloud() {
   try {
     const raw = localStorage.getItem('melodiaData');
     if (!raw) return;
+
     const state = JSON.parse(raw);
-    const f = await __initFirebaseAdmin();
-    const ref = await __cloudRef();
+    const f    = await __initFirebaseAdmin();
+    const ref  = await __cloudRef();
+
     __LAST_LOCAL_PUSH_AT = Date.now();
     await f.setDoc(ref, state, { merge: false });
   } catch (e) {
     console.error('[Firebase admin] push error:', e);
+    alert('Erreur Firebase (admin) : ' + (e.message || e));
   }
 }
 
-// SUBSCRIBE cloud -> localStorage -> refresh admin UI
+// SUBSCRIBE Firestore -> localStorage -> UI admin
 (async function __subscribeAdmin() {
-  const f = await __initFirebaseAdmin();
-  const ref = await __cloudRef();
-  f.onSnapshot(ref, snap => {
-    if (!snap.exists()) return;
-    const cloud = snap.data();
-    // évite d’écraser juste après notre propre push
-    if (Date.now() - __LAST_LOCAL_PUSH_AT < 800) return;
-    __SYNCING_FROM_CLOUD = true;
-    localStorage.setItem('melodiaData', JSON.stringify(cloud));
-    // rafraîchis l’UI admin si les fonctions existent
-    try { typeof renderSvcEditor === 'function' && renderSvcEditor(); } catch(_) {}
-    try { typeof renderStats     === 'function' && renderStats();     } catch(_) {}
-    try { typeof renderCalendar  === 'function' && renderCalendar();  } catch(_) {}
-    try { typeof renderDispos    === 'function' && renderDispos();    } catch(_) {}
-    try { typeof renderBmEditor  === 'function' && renderBmEditor();  } catch(_) {}
-    __SYNCING_FROM_CLOUD = false;
-    // notifie les autres onglets (site public) qu’un update a eu lieu
-    localStorage.setItem('melodia_sync_tick', String(Date.now()));
-  });
+  try {
+    const f   = await __initFirebaseAdmin();
+    const ref = await __cloudRef();
+
+    f.onSnapshot(ref, snap => {
+      if (!snap.exists()) return;
+
+      const cloud = snap.data();
+
+      // évite d’écraser juste après notre propre push
+      if (Date.now() - __LAST_LOCAL_PUSH_AT < 800) return;
+
+      __SYNCING_FROM_CLOUD = true;
+      localStorage.setItem('melodiaData', JSON.stringify(cloud));
+
+      // Rafraîchir les écrans admin si ces fonctions existent
+      try { typeof renderSvcEditor === 'function' && renderSvcEditor(); } catch {}
+      try { typeof renderStats     === 'function' && renderStats();     } catch {}
+      try { typeof renderCalendar  === 'function' && renderCalendar();  } catch {}
+      try { typeof renderDispos    === 'function' && renderDispos();    } catch {}
+      try { typeof renderBmEditor  === 'function' && renderBmEditor();  } catch {}
+
+      __SYNCING_FROM_CLOUD = false;
+
+      // Notifier les autres onglets (site public)
+      localStorage.setItem('melodia_sync_tick', String(Date.now()));
+    });
+  } catch (e) {
+    console.error('[Firebase admin] subscribe error:', e);
+    alert('Erreur Firebase (subscribe) : ' + (e.message || e));
+  }
 })();
-function db(){let d=localStorage.getItem("melodiaData");return d?JSON.parse(d):null;}
-function save(v){
-  localStorage.setItem("melodiaData", JSON.stringify(v));
-  if (!window.__SYNCING_FROM_CLOUD) {
+
+// === Accès / sauvegarde locale ===
+function db() {
+  const raw = localStorage.getItem('melodiaData');
+  return raw ? JSON.parse(raw) : {
+    categories: [],
+    beatmakers: [],
+    availability: {},
+    cart_items: [],
+    bookings: []
+  };
+}
+
+function save(v) {
+  localStorage.setItem('melodiaData', JSON.stringify(v));
+  if (!__SYNCING_FROM_CLOUD) {
     __pushLocalToCloud();
   }
 }

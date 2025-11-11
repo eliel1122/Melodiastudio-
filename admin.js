@@ -305,7 +305,17 @@ function broadcastCategories(cats){ localStorage.setItem("melodia_services_categ
 function exportServices(){ const d=db(); const blob=new Blob([JSON.stringify({categories:d.categories},null,2)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download="services.json"; a.click(); URL.revokeObjectURL(url);}
 
 // ---- Stats ----
-function renderStats(){ const box=document.getElementById('statsBox'); const d=db(); const paid=d.bookings.filter(b=>b.status==="paid"); const pending=d.bookings.filter(b=>b.status==="pending"); const total=paid.reduce((s,a)=>s+a.total,0); box.innerHTML=`<p><strong>Réservations payées :</strong> ${paid.length} • <strong>CA :</strong> ${total.toLocaleString()} FCFA</p><p><strong>En attente :</strong> ${pending.length}</p>`;}
+function renderStats() {
+  const box = document.getElementById('statsBox');
+  const d = db() || { bookings: [] };
+  const paid = (d.bookings || []).filter(b => b.status === "paid");
+  const pending = (d.bookings || []).filter(b => b.status === "pending");
+  const total = paid.reduce((s, a) => s + (a.total || 0), 0);
+  box.innerHTML =
+    `<p><strong>Réservations payées :</strong> ${paid.length} • ` +
+    `<strong>CA :</strong> ${total.toLocaleString()} FCFA</p>` +
+    `<p><strong>En attente :</strong> ${pending.length}</p>`;
+}
 
 // ---- Calendar (simplified list) ----
 function renderCalendar() {
@@ -381,7 +391,7 @@ function renderCalendar() {
       okBtn.className = 'cal-action-btn';
       okBtn.onclick = () => {
         const d2 = db();
-        const idx = d2.bookings.findIndex(x => x.ref === b.ref);
+        const idx = (d2.bookings || []).findIndex(x => x.ref === b.ref);
         if (idx >= 0) {
           d2.bookings[idx].status = 'paid';
           save(d2);
@@ -398,7 +408,7 @@ function renderCalendar() {
         if (!ok) return;
 
         const d2 = db();
-        const idx = d2.bookings.findIndex(x => x.ref === b.ref);
+        const idx = (d2.bookings || []).findIndex(x => x.ref === b.ref);
         if (idx >= 0) {
           const bk = d2.bookings[idx];
 
@@ -438,11 +448,15 @@ function renderCalendar() {
 }
 
 // ---- Disponibilités (add/list/delete per beatmaker) ----
-function renderDispos(){
-  const box=document.getElementById('disposBox'); const d=db(); box.innerHTML='';
-  (d.beatmakers||[]).forEach((b)=>{
-    const wrap=document.createElement('div'); wrap.className='service';
-    wrap.innerHTML=`<h4>${b.name}</h4>
+function renderDispos() {
+  const box = document.getElementById('disposBox');
+  const d = db() || {};
+  box.innerHTML = '';
+  (d.beatmakers || []).forEach((b) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'service';
+    wrap.innerHTML = `
+      <h4>${b.name}</h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
         <div>
           <label style="display:block;font-size:12px;color:#9ca3af">Nouveau créneau</label>
@@ -456,88 +470,189 @@ function renderDispos(){
       </div>`;
     box.appendChild(wrap);
 
-    function renderList(){
-      const target=wrap.querySelector(`#list-${b.id}`);
-      target.innerHTML='';
-      const arr=(db().availability||{})[b.id]||[];
-      if(arr.length===0){ target.innerHTML='<small class="note">Aucun créneau enregistré.</small>'; return; }
-      arr.slice().sort().forEach((iso)=>{
-        const row=document.createElement('div'); row.className='item';
-        const dt=new Date(iso);
-        const f=dt.toLocaleString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
-        row.innerHTML=`<div>${f}</div>`;
-        const del=document.createElement('button'); del.className='tab'; del.textContent='Supprimer';
-        del.onclick=()=>{ let x=db(); const xs=(x.availability[b.id]||[]); x.availability[b.id]=xs.filter(s=>s!==iso); save(x); broadcastAvailability(x.availability); renderList(); };
-        row.appendChild(del); target.appendChild(row);
+    function renderList() {
+      const target = wrap.querySelector(`#list-${b.id}`);
+      target.innerHTML = '';
+      const arr = (db().availability || {})[b.id] || [];
+      if (arr.length === 0) {
+        target.innerHTML = '<small class="note">Aucun créneau enregistré.</small>';
+        return;
+      }
+      arr.slice().sort().forEach((iso) => {
+        const row = document.createElement('div');
+        row.className = 'item';
+        const dt = new Date(iso);
+        const f = dt.toLocaleString('fr-FR', {
+          weekday: 'short',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).replace(',', '');
+        row.innerHTML = `<div>${f}</div>`;
+        const del = document.createElement('button');
+        del.className = 'tab';
+        del.textContent = 'Supprimer';
+        del.onclick = () => {
+          let x = db();
+          const xs = (x.availability[b.id] || []);
+          x.availability[b.id] = xs.filter(s => s !== iso);
+          save(x);
+          broadcastAvailability(x.availability);
+          renderList();
+        };
+        row.appendChild(del);
+        target.appendChild(row);
       });
     }
     renderList();
 
-    wrap.querySelector(`#add-${b.id}`).onclick=()=>{
-      const inp=wrap.querySelector(`#slot-${b.id}`);
-      const val=inp.value; if(!val){ alert('Choisis une date/heure'); return; }
-      let x=db(); x.availability=x.availability||{}; x.availability[b.id]=x.availability[b.id]||[];
-      const iso=new Date(val).toISOString();
-      if(!x.availability[b.id].includes(iso)){
-        x.availability[b.id].push(iso); save(x); broadcastAvailability(x.availability); renderList(); inp.value='';
-      } else { alert('Ce créneau existe déjà.'); }
+    wrap.querySelector(`#add-${b.id}`).onclick = () => {
+      const inp = wrap.querySelector(`#slot-${b.id}`);
+      const val = inp.value;
+      if (!val) { alert('Choisis une date/heure'); return; }
+      let x = db();
+      x.availability = x.availability || {};
+      x.availability[b.id] = x.availability[b.id] || [];
+      const iso = new Date(val).toISOString();
+      if (!x.availability[b.id].includes(iso)) {
+        x.availability[b.id].push(iso);
+        save(x);
+        broadcastAvailability(x.availability);
+        renderList();
+        inp.value = '';
+      } else {
+        alert('Ce créneau existe déjà.');
+      }
     };
   });
 }
-function broadcastAvailability(av){ localStorage.setItem('melodia_availability', JSON.stringify(av)); }
+
+function broadcastAvailability(av) {
+  localStorage.setItem('melodia_availability', JSON.stringify(av));
+}
 
 // ---- Beatmakers CRUD ----
-function renderBmEditor(){
-  const box=document.getElementById('bmEditor'); const d=db(); box.innerHTML='';
-  (d.beatmakers||[]).forEach((b,idx)=>{
-    const row=document.createElement('div'); row.className='service';
-    row.innerHTML=`<input value="${b.name}" style="width:220px;margin-right:8px"/><input value="${b.skills||''}" style="width:60%" placeholder="Spécialités"/>`;
-    const del=document.createElement('button'); del.className='tab'; del.textContent='Supprimer';
-    del.onclick=()=>{ let x=db(); x.beatmakers.splice(idx,1); save(x); renderBmEditor(); };
-    const ins=row.querySelectorAll('input');
-    ins[0].oninput=()=>{ let x=db(); x.beatmakers[idx].name=ins[0].value; save(x); };
-    ins[1].oninput=()=>{ let x=db(); x.beatmakers[idx].skills=ins[1].value; save(x); };
-    row.appendChild(del); box.appendChild(row);
+function renderBmEditor() {
+  const box = document.getElementById('bmEditor');
+  const d = db() || {};
+  box.innerHTML = '';
+  (d.beatmakers || []).forEach((b, idx) => {
+    const row = document.createElement('div');
+    row.className = 'service';
+    row.innerHTML =
+      `<input value="${b.name}" style="width:220px;margin-right:8px"/>` +
+      `<input value="${b.skills || ''}" style="width:60%" placeholder="Spécialités"/>`;
+    const del = document.createElement('button');
+    del.className = 'tab';
+    del.textContent = 'Supprimer';
+    del.onclick = () => {
+      let x = db();
+      x.beatmakers.splice(idx, 1);
+      save(x);
+      renderBmEditor();
+    };
+    const ins = row.querySelectorAll('input');
+    ins[0].oninput = () => {
+      let x = db();
+      x.beatmakers[idx].name = ins[0].value;
+      save(x);
+    };
+    ins[1].oninput = () => {
+      let x = db();
+      x.beatmakers[idx].skills = ins[1].value;
+      save(x);
+    };
+    row.appendChild(del);
+    box.appendChild(row);
   });
-  const add=document.createElement('button'); add.className='tab'; add.textContent='Ajouter un beatmaker';
-  add.onclick=()=>{ let x=db(); (x.beatmakers||[]).push({id:"bm-"+Date.now(),name:"Nouveau",skills:""}); save(x); renderBmEditor(); };
+  const add = document.createElement('button');
+  add.className = 'tab';
+  add.textContent = 'Ajouter un beatmaker';
+  add.onclick = () => {
+    let x = db();
+    (x.beatmakers || (x.beatmakers = []))
+      .push({ id: "bm-" + Date.now(), name: "Nouveau", skills: "" });
+    save(x);
+    renderBmEditor();
+  };
   box.appendChild(add);
 }
 
-// ---- Tabs (navigation admin) ----
-document.addEventListener('DOMContentLoaded', () => {
-  const tabs     = document.querySelectorAll('.tab[data-tab]');
-  const sections = document.querySelectorAll('section[id^="tab-"]');
+// ---- Export CSV ----
+function exportCsv() {
+  const d = db() || {};
+  const rows = [["ref", "date", "client", "phone", "email", "total", "beatmaker", "status"]];
+  (d.bookings || []).forEach(b => {
+    rows.push([
+      b.ref,
+      new Date(b.datetime).toISOString(),
+      b.name,
+      b.phone,
+      b.email,
+      b.total,
+      (d.beatmakers || []).find(x => x.id === b.beatmakerId)?.name || "",
+      b.status
+    ]);
+  });
+  const csv = rows.map(r =>
+    r.map(v => `"${String(v ?? '').replaceAll('"', '""')}"`).join(",")
+  ).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "reservations.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
+// ---- Export services.json ----
+function exportServices() {
+  const d = db() || {};
+  const blob = new Blob(
+    [JSON.stringify({ categories: d.categories || [] }, null, 2)],
+    { type: "application/json" }
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "services.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---- Init admin (appelée après login OK) ----
+function init() {
+  renderSvcEditor();
+  renderStats();
+  renderCalendar();
+  renderDispos();
+  renderBmEditor();
+  const csvBtn = document.getElementById('exportCsv');
+  const svcBtn = document.getElementById('exportServices');
+  if (csvBtn) csvBtn.onclick = exportCsv;
+  if (svcBtn) svcBtn.onclick = exportServices;
+}
+
+// ---- Tabs navigation (indépendant de l'auth) ----
+document.addEventListener('DOMContentLoaded', () => {
+  const tabs = document.querySelectorAll('.tab[data-tab]');
+  const sections = document.querySelectorAll('section[id^="tab-"]');
   if (!tabs.length) return;
 
   tabs.forEach(btn => {
     btn.addEventListener('click', () => {
-      // onglet actif
       tabs.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-
-      const id = btn.dataset.tab; // services, stats, calendar...
-
-      // afficher la bonne section, cacher les autres
+      const id = btn.dataset.tab;
       sections.forEach(sec => {
         sec.style.display = (sec.id === 'tab-' + id) ? 'block' : 'none';
       });
     });
   });
 
-  // forcer "services" par défaut
   const first = document.querySelector('.tab[data-tab="services"]');
   if (first) first.click();
 });
-// ---- Export CSV ----
-function exportCsv(){
-  const d=db(); const rows=[["ref","date","client","phone","email","total","beatmaker","status"]];
-  d.bookings.forEach(b=>{
-    rows.push([b.ref,new Date(b.datetime).toISOString(),b.name,b.phone,b.email,b.total,(d.beatmakers.find(x=>x.id===b.beatmakerId)||{}).name||"",b.status]);
-  });
-  const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\\n");
-  const blob=new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download="reservations.csv"; a.click(); URL.revokeObjectURL(url);
-}
-function exportServices(){ const d=db(); const blob=new Blob([JSON.stringify({categories:d.categories},null,2)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download="services.json"; a.click(); URL.revokeObjectURL(url);}

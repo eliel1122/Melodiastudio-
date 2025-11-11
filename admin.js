@@ -236,32 +236,6 @@ async function ensureLocalFromCloud() {
   }
 })();
 
-// ---- Tabs (navigation admin) ----
-function setupTabs() {
-  const tabs     = document.querySelectorAll('.tab[data-tab]');
-  const sections = document.querySelectorAll('section[id^="tab-"]');
-
-  if (!tabs.length) return;
-
-  tabs.forEach(btn => {
-    btn.onclick = () => {
-      // passer l'onglet actif
-      tabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      const id = btn.dataset.tab; // "services", "stats", "calendar", "dispos", "beatmakers", "export"
-
-      // afficher uniquement la bonne section
-      sections.forEach(sec => {
-        if (sec.id === 'tab-' + id) {
-          sec.style.display = 'block';
-        } else {
-          sec.style.display = 'none';
-        }
-      });
-    };
-  });
-}
 
 // ---- Init admin une fois connecté ----
 function init() {
@@ -277,6 +251,7 @@ function init() {
   const svcBtn = document.getElementById('exportServices');
   if (csvBtn) csvBtn.onclick = exportCsv;
   if (svcBtn) svcBtn.onclick = exportServices;
+}
 
   // préparation des onglets
   setupTabs();

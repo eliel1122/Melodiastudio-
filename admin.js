@@ -110,6 +110,33 @@ function save(v) {
     __pushLocalToCloud();
   }
 }
+// Charge l'état depuis Firestore dans localStorage
+async function ensureLocalFromCloud() {
+  try {
+    const f   = await __initFirebaseAdmin();
+    const ref = await __cloudRef();
+    const snap = await f.getDoc(ref);
+
+    if (snap.exists()) {
+      // On a déjà des données dans Firestore → on les met dans localStorage
+      const state = snap.data();
+      localStorage.setItem('melodiaData', JSON.stringify(state));
+    } else {
+      // Firestore est vide → on crée une base minimale
+      const empty = {
+        categories: [],
+        beatmakers: [],
+        availability: {},
+        cart_items: [],
+        bookings: []
+      };
+      localStorage.setItem('melodiaData', JSON.stringify(empty));
+      await f.setDoc(ref, empty, { merge: false });
+    }
+  } catch (e) {
+    console.error('ensureLocalFromCloud error', e);
+  }
+}
 const PASS="melodia2025";
 document.getElementById('loginBtn').onclick=()=>{const v=(document.getElementById('pwd').value||'').trim();if(v===PASS){document.getElementById('login').style.display='none';document.getElementById('adminApp').style.display='block';init();}else alert("Mot de passe incorrect.");};
 

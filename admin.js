@@ -217,7 +217,11 @@ function renderCalendar() {
   }
 
   const tbl = document.createElement('table');
-  tbl.innerHTML = '<thead><tr><th>Ref</th><th>Date</th><th>Client</th><th>Total</th><th>Beatmaker</th><th>Statut</th><th>Actions</th></tr></thead>';
+  tbl.innerHTML =
+    '<thead><tr>' +
+    '<th>Ref</th><th>Date</th><th>Client</th><th>Total</th>' +
+    '<th>Beatmaker</th><th>Statut</th><th>Actions</th>' +
+    '</tr></thead>';
 
   const tb = document.createElement('tbody');
 
@@ -237,25 +241,47 @@ function renderCalendar() {
     // Colonne Actions
     const tdActions = document.createElement('td');
 
+    // Bouton VALIDER
     const btnOk = document.createElement('button');
     btnOk.textContent = 'Valider';
     btnOk.className = 'tab';
     btnOk.onclick = () => {
       let x = db();
-      x.bookings[idx].status = 'paid';   // utilisé dans les stats
+      x.bookings[idx].status = 'paid';
       save(x);
       renderCalendar();
     };
 
+    // Bouton ANNULER
     const btnCancel = document.createElement('button');
     btnCancel.textContent = 'Annuler';
     btnCancel.className = 'tab';
     btnCancel.style.marginLeft = '6px';
     btnCancel.onclick = () => {
-      if (!confirm('Annuler cette réservation ?')) return;
+      if (!confirm('Annuler cette réservation et libérer le créneau ?')) return;
+
       let x = db();
-      x.bookings[idx].status = 'cancelled'; // le site ne proposera plus ce créneau
+      const booking = x.bookings[idx];
+
+      // 1) statut = cancelled
+      booking.status = 'cancelled';
+
+      // 2) on remet le créneau dans availability du bon beatmaker
+      const bmId = booking.beatmakerId;
+      const slot = booking.datetime; // ISO string
+
+      x.availability = x.availability || {};
+      x.availability[bmId] = x.availability[bmId] || [];
+
+      if (!x.availability[bmId].includes(slot)) {
+        x.availability[bmId].push(slot);
+      }
+
+      // 3) on sauvegarde + broadcast pour le site public
       save(x);
+      try { broadcastAvailability(x.availability); } catch (e) {}
+
+      // 4) refresh tableau
       renderCalendar();
     };
 

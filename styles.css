@@ -164,3 +164,88 @@ td,th{border-bottom:1px solid rgba(255,255,255,.08);padding:8px;text-align:left}
     font-size: 12px;
   }
 }
+/* Ligne titre + bouton export du calendrier */
+.cal-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.cal-export-btn {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: transparent;
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.cal-export-btn:hover {
+  background: rgba(148, 163, 184, 0.15);
+}
+
+/* Mise en forme du tableau calendrier */
+#calBox table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed; /* aligne toutes les colonnes */
+}
+
+#calBox th,
+#calBox td {
+  padding: 6px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Ref et Client : coupés proprement avec "..." si trop long */
+.cal-ref,
+.cal-client {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-ref {
+  max-width: 120px;
+}
+
+.cal-client {
+  max-width: 90px;
+}
+
+/* Colonne Actions bien alignée au centre */
+#calBox th:last-child,
+#calBox td.cal-actions {
+  text-align: center;
+}
+
+/* Actions : deux boutons côte à côte */
+.cal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Responsive mobile */
+@media (max-width: 768px) {
+  #calBox th,
+  #calBox td {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+
+  .cal-ref {
+    max-width: 100px;
+  }
+
+  .cal-client {
+    max-width: 80px;
+  }
+
+  .cal-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+}

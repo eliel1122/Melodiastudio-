@@ -207,7 +207,136 @@ function exportServices(){ const d=db(); const blob=new Blob([JSON.stringify({ca
 function renderStats(){ const box=document.getElementById('statsBox'); const d=db(); const paid=d.bookings.filter(b=>b.status==="paid"); const pending=d.bookings.filter(b=>b.status==="pending"); const total=paid.reduce((s,a)=>s+a.total,0); box.innerHTML=`<p><strong>Réservations payées :</strong> ${paid.length} • <strong>CA :</strong> ${total.toLocaleString()} FCFA</p><p><strong>En attente :</strong> ${pending.length}</p>`;}
 
 // ---- Calendar (simplified list) ----
-function renderCalendar(){ const box=document.getElementById('calBox'); const d=db(); if(!d.bookings.length){ box.innerHTML='<small class="note">Aucune réservation.</small>'; return;} const tbl=document.createElement('table'); tbl.innerHTML='<thead><tr><th>Ref</th><th>Date</th><th>Client</th><th>Total</th><th>Beatmaker</th><th>Statut</th></tr></thead>'; const tb=document.createElement('tbody'); d.bookings.slice().reverse().forEach(b=>{ const tr=document.createElement('tr'); const dt=new Date(b.datetime).toLocaleString('fr-FR'); const bm=(d.beatmakers.find(x=>x.id===b.beatmakerId)||{}).name||''; tr.innerHTML=`<td>${b.ref}</td><td>${dt}</td><td>${b.name}</td><td>${b.total.toLocaleString()} FCFA</td><td>${bm}</td><td>${b.status}</td>`; tb.appendChild(tr);}); tbl.appendChild(tb); box.innerHTML=''; box.appendChild(tbl);}
+function renderCalendar() {
+  const box = document.getElementById('calBox');
+
+  try {
+    const d = db() || {};
+    const allBookings = Array.isArray(d.bookings) ? d.bookings : [];
+
+    // On masque les réservations annulées
+    const visible = allBookings.filter(b => b && b.status !== 'cancelled');
+
+    if (!visible.length) {
+      box.innerHTML = '<small class="note">Aucune réservation.</small>';
+      return;
+    }
+
+    const tbl = document.createElement('table');
+    tbl.innerHTML = `
+      <thead>
+        <tr>
+          <th style="width:100px">Ref</th>
+          <th>Date</th>
+          <th>Cl</th>
+          <th>Total</th>
+          <th>Bm</th>
+          <th>Statut</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+    `;
+    const tb = document.createElement('tbody');
+
+    visible.slice().reverse().forEach(b => {
+      const tr = document.createElement('tr');
+
+      const dt = new Date(b.datetime).toLocaleString('fr-FR', {
+        year: '2-digit',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const refFull = b.ref || '';
+      const refShort = refFull.length > 10 ? refFull.slice(0, 10) + '…' : refFull;
+
+      const bm = (d.beatmakers || []).find(x => x.id === b.beatmakerId);
+      const bmName = bm ? bm.name : '';
+
+      const statusIcon = b.status === 'paid' ? '✅' : '⏳';
+
+      tr.innerHTML = `
+        <td title="${refFull}">${refShort}</td>
+        <td>${dt}</td>
+        <td>${b.name || ''}</td>
+        <td>${(b.total || 0).toLocaleString()} FCFA</td>
+        <td>${bmName}</td>
+        <td style="text-align:center">${statusIcon}</td>
+        <td class="cal-actions" style="text-align:center"></td>
+      `;
+
+      const actionsTd = tr.querySelector('.cal-actions');
+
+      // Bouton valider
+      const okBtn = document.createElement('button');
+      okBtn.textContent = '✅';
+      okBtn.className = 'cal-action-btn';
+      okBtn.onclick = () => {
+        const d2 = db();
+        const idx = d2.bookings.findIndex(x => x.ref === b.ref);
+        if (idx >= 0) {
+          d2.bookings[idx].status = 'paid';
+          save(d2);
+          renderCalendar();
+        }
+      };
+
+      // Bouton annuler (avec confirmation + suppression)
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = '❌';
+      cancelBtn.className = 'cal-action-btn';
+      cancelBtn.onclick = () => {
+        if (!confirm("Confirmer l'annulation et la suppression de cette réservation ?")) return;
+        const d2 = db();
+        const idx = d2.bookings.findIndex(x => x.ref === b.ref);
+        if (idx >= 0) {
+          const bk = d2.bookings[idx];
+          d2.bookings.splice(idx, 1);
+          d2.availability[bk.beatmakerId] = d2.availability[bk.beatmakerId] || [];
+          const iso = bk.datetime;
+          if (!d2.availability[bk.beatmakerId].includes(iso)) {
+            d2.availability[bk.beatmakerId].push(iso);
+          }
+          save(d2);
+          broadcastAvailability(d2.availability || {});
+          renderCalendar();
+          renderDispos();
+        }
+      };
+
+      actionsTd.appendChild(okBtn);
+      actionsTd.appendChild(cancelBtn);
+      tb.appendChild(tr);
+    });
+
+    tbl.appendChild(tb);
+    box.innerHTML = '';
+    box.appendChild(tbl);
+
+    // Ajout d’un bouton Export CSV
+    const exportBtn = document.createElement('button');
+    exportBtn.textContent = '📤 Export CSV';
+    exportBtn.className = 'tab';
+    exportBtn.style.marginBottom = '10px';
+    exportBtn.onclick = exportCsv;
+
+    const title = document.createElement('h3');
+    title.textContent = 'Calendrier';
+    title.style.display = 'flex';
+    title.style.justifyContent = 'space-between';
+    title.style.alignItems = 'center';
+    title.appendChild(exportBtn);
+
+    box.prepend(title);
+
+  } catch (e) {
+    console.error('Erreur dans renderCalendar()', e);
+    box.innerHTML = '<small class="note">Erreur lors du chargement du calendrier.</small>';
+  }
+}
+
 
 // ---- Disponibilités (add/list/delete per beatmaker) ----
 function renderDispos(){

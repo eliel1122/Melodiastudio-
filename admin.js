@@ -307,14 +307,16 @@ function exportServices(){ const d=db(); const blob=new Blob([JSON.stringify({ca
 // ---- Stats ----
 function renderStats() {
   const box = document.getElementById('statsBox');
-  const d = db() || { bookings: [] };
-  const paid = (d.bookings || []).filter(b => b.status === "paid");
-  const pending = (d.bookings || []).filter(b => b.status === "pending");
-  const total = paid.reduce((s, a) => s + (a.total || 0), 0);
-  box.innerHTML =
-    `<p><strong>Réservations payées :</strong> ${paid.length} • ` +
-    `<strong>CA :</strong> ${total.toLocaleString()} FCFA</p>` +
-    `<p><strong>En attente :</strong> ${pending.length}</p>`;
+  const d = db();
+  const paid = d.bookings.filter(b => b.status === "paid");
+  const pending = d.bookings.filter(b => b.status === "pending");
+  const total = paid.reduce((s, a) => s + a.total, 0);
+
+  box.innerHTML = `
+    <p><strong>Réservations payées :</strong> ${paid.length}
+    • <strong>CA :</strong> ${total.toLocaleString()} FCFA</p>
+    <p><strong>En attente :</strong> ${pending.length}</p>
+  `;
 }
 
 // ---- Calendar (simplified list) ----
@@ -391,7 +393,7 @@ function renderCalendar() {
       okBtn.className = 'cal-action-btn';
       okBtn.onclick = () => {
         const d2 = db();
-        const idx = (d2.bookings || []).findIndex(x => x.ref === b.ref);
+        const idx = d2.bookings.findIndex(x => x.ref === b.ref);
         if (idx >= 0) {
           d2.bookings[idx].status = 'paid';
           save(d2);
@@ -408,7 +410,7 @@ function renderCalendar() {
         if (!ok) return;
 
         const d2 = db();
-        const idx = (d2.bookings || []).findIndex(x => x.ref === b.ref);
+        const idx = d2.bookings.findIndex(x => x.ref === b.ref);
         if (idx >= 0) {
           const bk = d2.bookings[idx];
 
@@ -425,7 +427,7 @@ function renderCalendar() {
             }
           }
 
-          // 3. On sauvegarde + broadcast + rafraîchit l'UI
+          // 3. Sauvegarde + broadcast + refresh UI
           save(d2);
           try { broadcastAvailability(d2.availability || {}); } catch (_) {}
           renderCalendar();
@@ -450,8 +452,9 @@ function renderCalendar() {
 // ---- Disponibilités (add/list/delete per beatmaker) ----
 function renderDispos() {
   const box = document.getElementById('disposBox');
-  const d = db() || {};
+  const d = db();
   box.innerHTML = '';
+
   (d.beatmakers || []).forEach((b) => {
     const wrap = document.createElement('div');
     wrap.className = 'service';
@@ -467,7 +470,8 @@ function renderDispos() {
       <div style="margin-top:10px">
         <strong>Créneaux disponibles</strong>
         <div id="list-${b.id}" style="margin-top:6px"></div>
-      </div>`;
+      </div>
+    `;
     box.appendChild(wrap);
 
     function renderList() {
@@ -506,6 +510,7 @@ function renderDispos() {
         target.appendChild(row);
       });
     }
+
     renderList();
 
     wrap.querySelector(`#add-${b.id}`).onclick = () => {
@@ -536,14 +541,16 @@ function broadcastAvailability(av) {
 // ---- Beatmakers CRUD ----
 function renderBmEditor() {
   const box = document.getElementById('bmEditor');
-  const d = db() || {};
+  const d = db();
   box.innerHTML = '';
+
   (d.beatmakers || []).forEach((b, idx) => {
     const row = document.createElement('div');
     row.className = 'service';
-    row.innerHTML =
-      `<input value="${b.name}" style="width:220px;margin-right:8px"/>` +
-      `<input value="${b.skills || ''}" style="width:60%" placeholder="Spécialités"/>`;
+    row.innerHTML = `
+      <input value="${b.name}" style="width:220px;margin-right:8px"/>
+      <input value="${b.skills || ''}" style="width:60%" placeholder="Spécialités"/>
+    `;
     const del = document.createElement('button');
     del.className = 'tab';
     del.textContent = 'Supprimer';
@@ -554,26 +561,18 @@ function renderBmEditor() {
       renderBmEditor();
     };
     const ins = row.querySelectorAll('input');
-    ins[0].oninput = () => {
-      let x = db();
-      x.beatmakers[idx].name = ins[0].value;
-      save(x);
-    };
-    ins[1].oninput = () => {
-      let x = db();
-      x.beatmakers[idx].skills = ins[1].value;
-      save(x);
-    };
+    ins[0].oninput = () => { let x = db(); x.beatmakers[idx].name = ins[0].value; save(x); };
+    ins[1].oninput = () => { let x = db(); x.beatmakers[idx].skills = ins[1].value; save(x); };
     row.appendChild(del);
     box.appendChild(row);
   });
+
   const add = document.createElement('button');
   add.className = 'tab';
   add.textContent = 'Ajouter un beatmaker';
   add.onclick = () => {
     let x = db();
-    (x.beatmakers || (x.beatmakers = []))
-      .push({ id: "bm-" + Date.now(), name: "Nouveau", skills: "" });
+    (x.beatmakers || []).push({ id: "bm-" + Date.now(), name: "Nouveau", skills: "" });
     save(x);
     renderBmEditor();
   };
@@ -582,9 +581,9 @@ function renderBmEditor() {
 
 // ---- Export CSV ----
 function exportCsv() {
-  const d = db() || {};
+  const d = db();
   const rows = [["ref", "date", "client", "phone", "email", "total", "beatmaker", "status"]];
-  (d.bookings || []).forEach(b => {
+  d.bookings.forEach(b => {
     rows.push([
       b.ref,
       new Date(b.datetime).toISOString(),
@@ -592,13 +591,11 @@ function exportCsv() {
       b.phone,
       b.email,
       b.total,
-      (d.beatmakers || []).find(x => x.id === b.beatmakerId)?.name || "",
+      (d.beatmakers.find(x => x.id === b.beatmakerId) || {}).name || "",
       b.status
     ]);
   });
-  const csv = rows.map(r =>
-    r.map(v => `"${String(v ?? '').replaceAll('"', '""')}"`).join(",")
-  ).join("\n");
+  const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -608,11 +605,10 @@ function exportCsv() {
   URL.revokeObjectURL(url);
 }
 
-// ---- Export services.json ----
 function exportServices() {
-  const d = db() || {};
+  const d = db();
   const blob = new Blob(
-    [JSON.stringify({ categories: d.categories || [] }, null, 2)],
+    [JSON.stringify({ categories: d.categories }, null, 2)],
     { type: "application/json" }
   );
   const url = URL.createObjectURL(blob);
@@ -623,36 +619,130 @@ function exportServices() {
   URL.revokeObjectURL(url);
 }
 
-// ---- Init admin (appelée après login OK) ----
+// ---- Export calendrier (bouton dans l'onglet calendrier) ----
+(function setupCalExport() {
+  const btn = document.getElementById('calExportBtn');
+  if (!btn) return;
+  btn.onclick = function () {
+    const d = db() || {};
+    const rows = [["ref", "date", "client", "phone", "email", "total", "beatmaker", "status"]];
+    (d.bookings || []).forEach(b => {
+      rows.push([
+        b.ref,
+        new Date(b.datetime).toISOString(),
+        b.name,
+        b.phone,
+        b.email,
+        b.total,
+        (d.beatmakers.find(x => x.id === b.beatmakerId) || {}).name || "",
+        b.status
+      ]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "calendrier.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+})();
+
+// ---- Tabs ----
+function setupTabs() {
+  const tabs = document.querySelectorAll('.tab[data-tab]');
+  const sections = document.querySelectorAll('section[id^="tab-"]');
+  if (!tabs.length || !sections.length) return;
+
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.tab;
+      tabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      sections.forEach(sec => {
+        sec.style.display = (sec.id === 'tab-' + id) ? 'block' : 'none';
+      });
+    });
+  });
+}
+
+// ---- Initialisation de l'app admin ----
 function init() {
   renderSvcEditor();
   renderStats();
   renderCalendar();
   renderDispos();
   renderBmEditor();
-  const csvBtn = document.getElementById('exportCsv');
-  const svcBtn = document.getElementById('exportServices');
-  if (csvBtn) csvBtn.onclick = exportCsv;
-  if (svcBtn) svcBtn.onclick = exportServices;
+
+  const exportCsvBtn = document.getElementById('exportCsv');
+  if (exportCsvBtn) exportCsvBtn.onclick = exportCsv;
+  const exportServicesBtn = document.getElementById('exportServices');
+  if (exportServicesBtn) exportServicesBtn.onclick = exportServices;
 }
 
-// ---- Tabs navigation (indépendant de l'auth) ----
-document.addEventListener('DOMContentLoaded', () => {
-  const tabs = document.querySelectorAll('.tab[data-tab]');
-  const sections = document.querySelectorAll('section[id^="tab-"]');
-  if (!tabs.length) return;
+// ---- Authentification admin (Firebase Auth) ----
+(async function setupAdminAuth() {
+  const loginBox   = document.getElementById('login');
+  const appBox     = document.getElementById('adminApp');
+  const emailInput = document.getElementById('adminEmail');
+  const pwdInput   = document.getElementById('adminPwd');
+  const btn        = document.getElementById('loginBtn');
 
-  tabs.forEach(btn => {
-    btn.addEventListener('click', () => {
-      tabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const id = btn.dataset.tab;
-      sections.forEach(sec => {
-        sec.style.display = (sec.id === 'tab-' + id) ? 'block' : 'none';
-      });
+  const f = await __initFirebaseAdmin(); // doit fournir auth et helpers
+
+  // Bouton "Se connecter"
+  if (btn) {
+    btn.onclick = async () => {
+      const email = (emailInput.value || '').trim();
+      const pwd   = (pwdInput.value   || '').trim();
+      if (!email || !pwd) {
+        alert("Merci de saisir l'email et le mot de passe.");
+        return;
+      }
+      try {
+        btn.disabled = true;
+        const old = btn.textContent;
+        btn.textContent = 'Connexion...';
+        await f.signInWithEmailAndPassword(f.auth, email, pwd);
+        btn.textContent = old;
+        btn.disabled = false;
+      } catch (e) {
+        console.error(e);
+        alert("Connexion impossible. Vérifie l'email et le mot de passe.");
+        btn.disabled = false;
+        btn.textContent = 'Se connecter';
+      }
+    };
+  }
+
+  // Suivi de l'état d'authentification
+  if (f.onAuthStateChanged) {
+    f.onAuthStateChanged(f.auth, (user) => {
+      if (user) {
+        if (loginBox) loginBox.style.display = 'none';
+        if (appBox)   appBox.style.display   = 'block';
+        init();
+        setupTabs();
+      } else {
+        if (appBox)   appBox.style.display   = 'none';
+        if (loginBox) loginBox.style.display = 'block';
+      }
     });
-  });
+  }
 
-  const first = document.querySelector('.tab[data-tab="services"]');
-  if (first) first.click();
-});
+  // Bouton "Se déconnecter" dans l'app
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn && f.signOut) {
+    logoutBtn.onclick = async () => {
+      try {
+        await f.signOut(f.auth);
+        if (appBox)   appBox.style.display   = 'none';
+        if (loginBox) loginBox.style.display = 'block';
+      } catch (e) {
+        console.error('Erreur lors de la déconnexion', e);
+        alert("Erreur lors de la déconnexion.");
+      }
+    };
+  }
+})();

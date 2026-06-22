@@ -75,6 +75,10 @@ exports.handler = async (event) => {
     const summary = formatSummary(details, items, created, fid);
     await sendWhatsApp(summary).catch(() => {});
 
+    // Format un récap WhatsApp pour le client (à envoyer par lui via wa.me)
+    const recapClient = formatRecapClient(details, items, created, fid);
+    const studioPhone = (process.env.STUDIO_WHATSAPP || '2250700000000').replace(/\D/g, '');
+
     return jsonResponse(200, {
       ok: true,
       created,
@@ -90,6 +94,11 @@ exports.handler = async (event) => {
         remise: remiseForTier(fid.tier || 'Bronze'),
         progression: fid.progression || null,
         isNew: !!fid.isNew,
+      },
+      whatsapp: {
+        url: `https://wa.me/${studioPhone}?text=${encodeURIComponent(recapClient)}`,
+        recap: recapClient,
+        studioPhone,
       },
     });
 
@@ -256,6 +265,36 @@ function generateRef() {
   const day = String(d.getDate()).padStart(2, '0');
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
   return `MEL-${y}${m}${day}-${rand}`;
+}
+
+function formatRecapClient(details, items, created, fid) {
+  const lines = [
+    `🎙️ Salut Melodia, je viens de réserver en ligne :`,
+    ``,
+    `Nom : ${details.name}`,
+    `Tél : ${details.phone}`,
+  ];
+  items.forEach((it, i) => {
+    const refLine = created[i]?.ref ? ` [Réf: ${created[i].ref}]` : '';
+    lines.push(`• ${mapService(it.service)} le ${it.date}${it.slotTime ? ' à ' + it.slotTime : ''} (${it.duration}h)${refLine}`);
+  });
+  if (details.project) {
+    lines.push(``);
+    lines.push(`Mon projet : ${details.project.slice(0, 200)}`);
+  }
+  if (fid?.tier) {
+    lines.push(``);
+    if (fid.isNew) {
+      lines.push(`🎉 J'ai aussi récupéré ma carte fidélité Bronze !`);
+    } else if (fid.sessionUnlocked) {
+      lines.push(`⭐ Je viens de débloquer une séance offerte ! Ma carte : ${fid.tier}.`);
+    } else if (fid.tierUpgraded) {
+      lines.push(`🎉 Je passe ${fid.tier} sur ma carte fidélité !`);
+    }
+  }
+  lines.push(``);
+  lines.push(`Merci de confirmer 🙏`);
+  return lines.join('\n');
 }
 
 function formatSummary(details, items, created, fid) {

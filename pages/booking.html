@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Réserver · Melodia Studio · Abidjan</title>
+  <meta name="description" content="Réserve ta session studio à Melodia Abidjan. Calendrier en ligne, créneaux disponibles, confirmation sous 24h." />
+  <meta name="theme-color" content="#08080C" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/reset.css" />
+  <link rel="stylesheet" href="../css/design-system.css" />
+  <link rel="stylesheet" href="../css/home.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="glow glow--blue" aria-hidden="true"></div>
+  <div class="glow glow--cyan" aria-hidden="true"></div>
+
+  <div id="nav-mount"></div>
+
+  <main>
+    <section class="page-hero">
+      <div class="page-hero__crumb">
+        <a href="../index.html">Accueil</a>
+        <span class="sep">/</span>
+        <span>Réserver</span>
+      </div>
+      <p class="eyebrow"><span class="dot"></span><span id="hero-eyebrow">Quatre étapes, sous 2 minutes</span></p>
+      <h1 class="display">Réserve <span class="display--accent">ta session.</span></h1>
+      <p class="lead" id="hero-lead">Choisis ta prestation, ta date, ton créneau, laisse-nous tes infos. On revient vers toi sous 24h pour confirmer.</p>
+    </section>
+
+    <section class="block">
+      <div class="booking-layout">
+        <div class="booking-main glass" id="booking-main">
+          <!-- Step indicator (rendered by JS) -->
+          <div class="booking-steps" id="booking-steps"></div>
+
+          <!-- Steps content (rendered by JS) -->
+          <div id="booking-steps-content"></div>
+        </div>
+
+        <!-- Summary panel -->
+        <aside class="booking-summary glass" id="booking-summary"></aside>
+      </div>
+    </section>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script>window.MELODIA_PAGE = 'booking'; window.MELODIA_BASE = '../';</script>
+  <script src="../js/cart.js" defer></script>
+  <script src="../js/layout.js" defer></script>
+  <script src="../js/booking.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Panier · Melodia Studio · Abidjan</title>
+  <meta name="description" content="Ton panier Melodia Studio — finalise ta sélection de services et passe à la réservation." />
+  <meta name="theme-color" content="#08080C" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/reset.css" />
+  <link rel="stylesheet" href="../css/design-system.css" />
+  <link rel="stylesheet" href="../css/home.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="glow glow--blue" aria-hidden="true"></div>
+  <div class="glow glow--cyan" aria-hidden="true"></div>
+
+  <div id="nav-mount"></div>
+
+  <main>
+    <section class="page-hero">
+      <div class="page-hero__crumb">
+        <a href="../index.html">Accueil</a><span class="sep">/</span>
+        <span>Panier</span>
+      </div>
+      <p class="eyebrow"><span class="dot"></span> Récapitulatif</p>
+      <h1 class="display">Mon <span class="display--accent">panier.</span></h1>
+      <p class="lead">Vérifie ta sélection avant de réserver. Tu peux ajuster les quantités ou retirer des éléments.</p>
+    </section>
+
+    <section class="block" id="cart-section">
+      <!-- Filled by JS -->
+    </section>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script>window.MELODIA_PAGE = 'panier'; window.MELODIA_BASE = '../';</script>
+  <script src="../js/cart.js" defer></script>
+  <script src="../js/layout.js" defer></script>
+  <script src="../js/panier.js" defer></script>
+</body>
+</html>

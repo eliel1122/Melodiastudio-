@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Carte de fidélité · Melodia Studio · Abidjan</title>
+  <meta name="description" content="Récupère ta carte de fidélité Melodia Studio. Gratuite, 1 point offert à l'inscription, 1 séance offerte toutes les 5 réservations. 4 niveaux : Bronze, Argent, Gold, Platinum." />
+  <meta name="theme-color" content="#08080C" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/reset.css" />
+  <link rel="stylesheet" href="../css/design-system.css" />
+  <link rel="stylesheet" href="../css/home.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <link rel="stylesheet" href="../css/fidelite.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="glow glow--blue" aria-hidden="true"></div>
+  <div class="glow glow--cyan" aria-hidden="true"></div>
+
+  <div id="nav-mount"></div>
+
+  <main>
+    <div class="fidelite-wrap">
+
+      <!-- HERO -->
+      <header class="fid-hero">
+        <span class="eyebrow">// Melodia Family · Programme de fidélité</span>
+        <h1>TA CARTE, <span class="accent">TES PRIVILÈGES.</span></h1>
+        <p class="lead">Gratuite, à vie. <b style="color:var(--accent)">1 point offert</b> dès ton inscription. <b style="color:var(--accent)">1 séance offerte</b> toutes les 5 réservations. Plus tu reviens, plus tu débloques d'avantages.</p>
+      </header>
+
+      <!-- TIERS PRESENTATION -->
+      <section>
+        <span class="section-eyebrow">// 4 niveaux · Évolution automatique</span>
+        <h2 class="section-title">Du Bronze au <span class="accent">Platinum.</span></h2>
+        <div class="tiers-grid">
+          <article class="tier-mini bronze">
+            <h3>Bronze</h3>
+            <div class="range">0 — 4 séances</div>
+            <ul>
+              <li>1 point offert à l'inscription</li>
+              <li>1 séance offerte toutes les 5</li>
+              <li>Carte QR digitale</li>
+              <li>Newsletter Melodia</li>
+            </ul>
+          </article>
+          <article class="tier-mini argent">
+            <h3>Argent</h3>
+            <div class="range">5 — 14 séances</div>
+            <ul>
+              <li><b>−5%</b> sur tous les services</li>
+              <li>Playlist privée Spotify</li>
+              <li>Réservation prioritaire week-end</li>
+              <li>Écoutes privées mensuelles</li>
+            </ul>
+          </article>
+          <article class="tier-mini gold">
+            <h3>Gold</h3>
+            <div class="range">15 — 29 séances</div>
+            <ul>
+              <li><b>−10%</b> sur tous les services</li>
+              <li>1 cover art offert par an</li>
+              <li>Mastering 24h max</li>
+              <li>Soirée studio annuelle (+1)</li>
+            </ul>
+          </article>
+          <article class="tier-mini platinum">
+            <h3>Platinum</h3>
+            <div class="range">30+ séances</div>
+            <ul>
+              <li><b>−15%</b> sur tous les services</li>
+              <li>1 session studio offerte / an</li>
+              <li>Cover + visualizer offerts par album</li>
+              <li>Contact direct fondateur</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- INSCRIPTION FORM -->
+      <section id="inscription">
+        <span class="section-eyebrow" style="text-align:center;display:block;">// Inscription · 30 secondes</span>
+        <h2 class="section-title" style="text-align:center;">Récupère ta <span class="accent">carte.</span></h2>
+
+        <!-- Si déjà membre : message -->
+        <div id="alreadyMember" style="display:none;text-align:center;max-width:560px;margin:0 auto 24px;padding:20px;border:1px solid var(--accent);border-radius:14px;background:rgba(30,144,255,0.08);">
+          <p style="color:var(--accent);font-family:'JetBrains Mono',monospace;letter-spacing:0.2em;font-size:12px;text-transform:uppercase;margin-bottom:8px;">// Tu es déjà membre</p>
+          <p style="color:var(--fg);margin-bottom:16px;">Salut <b id="alreadyName"></b> ! Ta carte est déjà active.</p>
+          <a href="ma-carte.html" class="mc-btn primary" style="display:inline-block;">Voir ma carte →</a>
+        </div>
+
+        <form class="fid-form" id="fidForm">
+          <h2>1 minute, et c'est <span class="accent">à toi.</span></h2>
+          <p class="sub">Tes infos restent confidentielles. Tu reçois ta carte digitale tout de suite, avec ton premier point déjà dessus.</p>
+
+          <div class="row">
+            <div class="field">
+              <label for="firstName">// PRÉNOM</label>
+              <input type="text" id="firstName" name="firstName" required autocomplete="given-name" />
+            </div>
+            <div class="field">
+              <label for="lastName">// NOM</label>
+              <input type="text" id="lastName" name="lastName" required autocomplete="family-name" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="phone">// TÉLÉPHONE / WHATSAPP</label>
+            <input type="tel" id="phone" name="phone" required autocomplete="tel" placeholder="+225 07 00 00 00 00" />
+          </div>
+
+          <div class="field">
+            <label for="email">// EMAIL</label>
+            <input type="email" id="email" name="email" required autocomplete="email" placeholder="ton@email.com" />
+          </div>
+
+          <div class="field">
+            <label for="instagram">// INSTAGRAM <span style="opacity:0.5">(OPTIONNEL)</span></label>
+            <input type="text" id="instagram" name="instagram" placeholder="@ton_pseudo" />
+          </div>
+
+          <button type="submit" class="submit">Activer ma carte + 1 point offert →</button>
+          <p class="legal">En t'inscrivant, tu acceptes que Melodia conserve ces infos pour gérer ton compte fidélité. On ne partage rien à personne. Désinscription possible à tout moment.</p>
+        </form>
+      </section>
+
+    </div>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script>window.MELODIA_PAGE = 'fidelite'; window.MELODIA_BASE = '../';</script>
+  <script src="../js/cart.js" defer></script>
+  <script src="../js/layout.js" defer></script>
+  <script src="../js/fidelite.js" defer></script>
+  <script defer>
+    document.addEventListener('DOMContentLoaded', function () {
+      // Si déjà membre, masquer le form et afficher message
+      const existing = MelodiaFidelite.getClient();
+      if (existing) {
+        document.getElementById('alreadyMember').style.display = 'block';
+        document.getElementById('alreadyName').textContent = existing.firstName + ' ' + existing.lastName;
+        document.getElementById('fidForm').style.display = 'none';
+      }
+
+      // Soumission du formulaire
+      const form = document.getElementById('fidForm');
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const data = {
+          firstName: form.firstName.value,
+          lastName:  form.lastName.value,
+          phone:     form.phone.value,
+          email:     form.email.value,
+          instagram: form.instagram.value
+        };
+        const client = MelodiaFidelite.createClient(data);
+        // Animation simple + redirect
+        form.querySelector('.submit').textContent = '✓ Carte créée · Redirection...';
+        setTimeout(function () {
+          window.location.href = 'ma-carte.html';
+        }, 600);
+      });
+    });
+  </script>
+</body>
+</html>

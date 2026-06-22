@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Ma carte fidélité · Melodia Studio</title>
+  <meta name="description" content="Ta carte de fidélité Melodia Studio personnelle." />
+  <meta name="theme-color" content="#08080C" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/reset.css" />
+  <link rel="stylesheet" href="../css/design-system.css" />
+  <link rel="stylesheet" href="../css/home.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <link rel="stylesheet" href="../css/fidelite.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="glow glow--blue" aria-hidden="true"></div>
+  <div class="glow glow--cyan" aria-hidden="true"></div>
+
+  <div id="nav-mount"></div>
+
+  <main>
+    <div class="fidelite-wrap">
+
+      <!-- État : pas de carte → redirige vers inscription -->
+      <div id="noCard" style="display:none;text-align:center;padding:80px 20px;">
+        <h2 style="font-family:'Anton',sans-serif;font-size:48px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:16px;">Pas de carte trouvée</h2>
+        <p style="color:var(--fg-dim);margin-bottom:32px;">Tu n'as pas encore activé ta carte de fidélité Melodia. Inscription en 30 secondes, 1 point offert tout de suite.</p>
+        <a href="fidelite.html" class="mc-btn primary" style="display:inline-block;padding:16px 32px;">Activer ma carte gratuite →</a>
+      </div>
+
+      <!-- État : carte active -->
+      <div id="cardActive" style="display:none;">
+        <header class="fid-hero" style="margin-bottom:24px;">
+          <span class="eyebrow">// Ta carte Melodia Family</span>
+          <h1>SALUT <span class="accent" id="greetName">ARTISTE.</span></h1>
+          <p class="lead" id="greetSubtitle">Voici ta carte de fidélité personnelle. Présente-la à chaque passage au studio.</p>
+        </header>
+
+        <div class="mc-layout">
+          <!-- COLONNE GAUCHE : LA CARTE -->
+          <div class="mc-card-col">
+            <div id="cardMount"></div>
+            <div class="mc-actions">
+              <a href="#" class="mc-btn" id="downloadBtn">📥 Télécharger PNG</a>
+              <a href="#" class="mc-btn" id="shareBtn">📤 Partager</a>
+            </div>
+            <div class="mc-actions">
+              <a href="booking.html" class="mc-btn primary" style="flex:1;">Réserver une séance →</a>
+            </div>
+          </div>
+
+          <!-- COLONNE DROITE : INFOS -->
+          <div class="mc-info-col">
+
+            <!-- Progress next tier -->
+            <div class="mc-block" id="progressBlock">
+              <h3 id="tierTitle">Niveau <span class="accent" id="tierName">Bronze</span></h3>
+              <p style="color:var(--fg-dim);font-size:13px;line-height:1.55;margin-bottom:20px;" id="tierTagline">Bienvenue dans la family.</p>
+
+              <div class="mc-progress">
+                <div class="mc-progress-meta">
+                  <span><b id="currentSeances">0</b> SÉANCES</span>
+                  <span id="nextTierLabel">→ ARGENT à 5</span>
+                </div>
+                <div class="mc-progress-bar"><div class="mc-progress-fill" id="progressFill" style="width:0%"></div></div>
+                <div class="mc-progress-meta">
+                  <span>POINTS ACTIFS · <b id="pointsActifs">0/5</b></span>
+                  <span>SÉANCES OFFERTES · <b id="freeSessions" style="color:var(--accent);">0</b></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Avantages tier actuel -->
+            <div class="mc-block">
+              <h3>Tes <span class="accent">avantages</span></h3>
+              <div class="mc-benefits" id="benefitsList"></div>
+            </div>
+
+            <!-- Historique -->
+            <div class="mc-block">
+              <h3>Historique <span class="accent">complet</span></h3>
+              <div class="mc-history" id="historyList"></div>
+            </div>
+
+            <!-- Coordonnées -->
+            <div class="mc-block">
+              <h3>Tes <span class="accent">coordonnées</span></h3>
+              <div id="coordonnees" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:13px;"></div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script>window.MELODIA_PAGE = 'ma-carte'; window.MELODIA_BASE = '../';</script>
+  <script src="../js/cart.js" defer></script>
+  <script src="../js/layout.js" defer></script>
+  <script src="../js/fidelite.js" defer></script>
+  <!-- QRCode.js light -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" defer></script>
+  <!-- html2canvas for download -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+  <script defer>
+    document.addEventListener('DOMContentLoaded', function () {
+      const F = window.MelodiaFidelite;
+      const client = F.getClient();
+
+      if (!client) {
+        document.getElementById('noCard').style.display = 'block';
+        return;
+      }
+      document.getElementById('cardActive').style.display = 'block';
+
+      const tier = F.getTier(client.seancesTotales);
+      const next = F.getNextTier(tier);
+
+      // Hero greeting
+      document.getElementById('greetName').textContent = client.firstName.toUpperCase() + '.';
+
+      // Render card
+      const cardHTML = F.renderCardHTML(client, { qrTargetId: 'qrTarget' });
+      document.getElementById('cardMount').innerHTML = cardHTML;
+
+      // Render QR (attendre que qrcodejs soit chargé)
+      function tryRenderQR() {
+        if (window.QRCode) {
+          F.renderQRInto('qrTarget', F.getCardUrl(client));
+        } else {
+          setTimeout(tryRenderQR, 100);
+        }
+      }
+      tryRenderQR();
+
+      // Tier infos
+      document.getElementById('tierName').textContent = tier.name;
+      document.getElementById('tierTagline').textContent = tier.tagline + '.';
+      document.getElementById('currentSeances').textContent = client.seancesTotales;
+      document.getElementById('pointsActifs').textContent = client.pointsActifs + '/5';
+      document.getElementById('freeSessions').textContent = F.freeSessionsAvailable(client);
+
+      // Progress
+      let pct;
+      if (next) {
+        const range = next.min - tier.min;
+        const inTier = client.seancesTotales - tier.min;
+        pct = Math.min(100, Math.max(0, (inTier / range) * 100));
+        document.getElementById('nextTierLabel').textContent = '→ ' + next.name.toUpperCase() + ' à ' + next.min;
+      } else {
+        pct = 100;
+        document.getElementById('nextTierLabel').textContent = '★ NIVEAU MAX ATTEINT';
+      }
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressFill').style.background = 'linear-gradient(90deg, ' + tier.color + ' 0%, var(--accent) 100%)';
+
+      // Benefits
+      const benefitsList = document.getElementById('benefitsList');
+      benefitsList.innerHTML = tier.benefits.map(b =>
+        `<div class="mc-benefit"><div class="ic">// ${b.icon}</div><div>${b.html}</div></div>`
+      ).join('');
+
+      // History
+      const historyList = document.getElementById('historyList');
+      if (!client.history || client.history.length === 0) {
+        historyList.innerHTML = '<div class="mc-empty">Aucune activité enregistrée pour l\'instant.</div>';
+      } else {
+        historyList.innerHTML = client.history.map(h => {
+          const sign = h.delta > 0 ? '+' : h.delta < 0 ? '−' : '·';
+          const cls = h.delta < 0 ? 'delta neg' : 'delta';
+          return `<div class="mc-hrow">
+            <div class="date">${F.formatDateTime(h.date)}</div>
+            <div class="lbl">${h.note}</div>
+            <div class="${cls}">${sign}${Math.abs(h.delta) || 0}</div>
+          </div>`;
+        }).join('');
+      }
+
+      // Coordonnées
+      document.getElementById('coordonnees').innerHTML = `
+        <div><div style="color:var(--fg-dim);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:4px;">// NOM</div><div>${client.firstName} ${client.lastName}</div></div>
+        <div><div style="color:var(--fg-dim);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:4px;">// ID</div><div style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.1em;">${client.shortId}</div></div>
+        <div><div style="color:var(--fg-dim);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:4px;">// TÉL</div><div>${client.phone || '—'}</div></div>
+        <div><div style="color:var(--fg-dim);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:4px;">// EMAIL</div><div>${client.email || '—'}</div></div>
+        ${client.instagram ? '<div><div style="color:var(--fg-dim);font-family:\'JetBrains Mono\',monospace;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:4px;">// INSTAGRAM</div><div>' + client.instagram + '</div></div>' : ''}
+      `;
+
+      // Download as PNG
+      document.getElementById('downloadBtn').addEventListener('click', function (e) {
+        e.preventDefault();
+        const card = document.querySelector('.mlc-card');
+        if (!card || !window.html2canvas) return alert('Téléchargement non disponible (chargement en cours)');
+        html2canvas(card, { backgroundColor: '#08080C', scale: 3 }).then(canvas => {
+          const link = document.createElement('a');
+          link.download = 'melodia-carte-' + client.shortId + '.png';
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        });
+      });
+
+      // Share
+      document.getElementById('shareBtn').addEventListener('click', async function (e) {
+        e.preventDefault();
+        const text = `Ma carte de fidélité Melodia Studio · Niveau ${tier.name} · ${F.freeSessionsAvailable(client)} séance(s) offerte(s) disponible(s).`;
+        if (navigator.share) {
+          try { await navigator.share({ title: 'Ma carte Melodia', text, url: window.location.href }); } catch(e){}
+        } else {
+          await navigator.clipboard.writeText(text + ' ' + window.location.href);
+          alert('Lien copié dans le presse-papier !');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

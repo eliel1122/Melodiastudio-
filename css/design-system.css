@@ -1,0 +1,266 @@
+/* =========================================================
+   MELODIA STUDIO — DESIGN SYSTEM
+   Sombre cinématique · Glassmorphisme · Typo contrastée
+   ========================================================= */
+
+:root {
+  /* ---- Colors */
+  --bg:           #08080C;
+  --bg-2:         #0E0E14;
+  --fg:           #F5F5F7;
+  --fg-dim:       #A8A8B3;
+  --fg-low:       #65656F;
+  --accent:       #1E90FF;          /* bleu néon (couleur signature du studio) */
+  --accent-2:     #6FB8FF;          /* hover/highlight */
+  --accent-glow:  rgba(30, 144, 255, 0.35);
+  --danger:       #FF4D5E;
+
+  /* ---- Glass */
+  --glass-bg:     rgba(255, 255, 255, 0.035);
+  --glass-bg-2:   rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur:   24px;
+
+  /* ---- Type */
+  --font-display: "Anton", "Bebas Neue", "Impact", sans-serif;
+  --font-body:    "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  /* ---- Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --space-10: 128px;
+
+  /* ---- Radii */
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 22px;
+  --r-xl: 32px;
+  --r-full: 999px;
+
+  /* ---- Container */
+  --container: 1320px;
+  --pad-x: clamp(20px, 4vw, 56px);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--fg);
+  background: var(--bg);
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* =========================================================
+   AMBIANT LAYERS (grain, glow)
+   ========================================================= */
+.grain {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+.glow {
+  position: fixed;
+  width: 60vw;
+  height: 60vw;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 0;
+}
+.glow--blue {
+  background: radial-gradient(circle, var(--accent-glow), transparent 60%);
+  top: -20vw;
+  right: -10vw;
+}
+.glow--cyan {
+  background: radial-gradient(circle, rgba(60, 220, 255, 0.18), transparent 60%);
+  bottom: -25vw;
+  left: -15vw;
+}
+
+/* =========================================================
+   TYPOGRAPHY
+   ========================================================= */
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(64px, 11vw, 180px);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.h-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(40px, 6vw, 88px);
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.display--accent {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.eyebrow .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+/* =========================================================
+   GLASS PRIMITIVE
+   ========================================================= */
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  border-radius: var(--r-lg);
+  position: relative;
+}
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.16), transparent 40%, transparent 60%, rgba(255,255,255,0.06));
+  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 12px 22px;
+  border-radius: var(--r-full);
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.btn--lg {
+  padding: 16px 28px;
+  font-size: 15px;
+}
+.btn--primary {
+  background: var(--fg);
+  color: var(--bg);
+  border: 1px solid var(--fg);
+}
+.btn--primary:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--fg);
+  box-shadow: 0 0 0 6px var(--accent-glow);
+  transform: translateY(-1px);
+}
+.btn--ghost {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.btn--ghost:hover {
+  background: var(--glass-bg-2);
+  border-color: rgba(255,255,255,0.2);
+  transform: translateY(-1px);
+}
+
+/* =========================================================
+   LOGO
+   ========================================================= */
+.nav__logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-body);
+  font-weight: 600;
+  transition: opacity 0.2s ease;
+}
+.nav__logo:hover { opacity: 0.85; }
+.nav__logo img {
+  height: 96px;
+  width: auto;
+  display: block;
+  filter: drop-shadow(0 0 16px rgba(30,144,255,0.25));
+  /* overflow the nav pill — keeps the header compact while logo stays large */
+}
+.footer .nav__logo img { height: 120px; }
+@media (max-width: 880px) {
+  .nav { height: 52px; }
+  .nav__logo img { height: 64px; }
+  .footer .nav__logo img { height: 88px; }
+}
+
+/* =========================================================
+   UTILITIES
+   ========================================================= */
+.section-header {
+  max-width: 820px;
+  margin: 0 auto var(--space-9);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-5);
+}
+.section-sub {
+  color: var(--fg-dim);
+  font-size: 17px;
+  max-width: 640px;
+}
+
+@media (max-width: 720px) {
+  .section-header { margin-bottom: var(--space-7); }
+}

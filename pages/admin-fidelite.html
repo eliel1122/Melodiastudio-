@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Admin Fidélité · Melodia Studio</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="theme-color" content="#08080C" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/reset.css" />
+  <link rel="stylesheet" href="../css/design-system.css" />
+  <link rel="stylesheet" href="../css/home.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <link rel="stylesheet" href="../css/fidelite.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="glow glow--blue" aria-hidden="true"></div>
+
+  <div id="nav-mount"></div>
+
+  <main>
+    <div class="admin-wrap">
+
+      <!-- LOCK SCREEN -->
+      <div class="admin-locked" id="lockScreen">
+        <div class="lock-icon">🔒</div>
+        <h2>Admin <span style="color:var(--accent);">Fidélité</span></h2>
+        <p style="color:var(--fg-dim);font-size:13px;">Réservé au staff Melodia. Tape ton code PIN pour accéder à la gestion des cartes.</p>
+        <input type="password" id="pinInput" placeholder="• • • •" maxlength="8" autocomplete="off" />
+        <button id="unlockBtn">Déverrouiller</button>
+        <p style="color:var(--fg-dim);font-size:11px;margin-top:14px;font-family:'JetBrains Mono',monospace;letter-spacing:0.15em;">PIN par défaut : <b style="color:var(--accent);">2024</b> · à modifier rapidement</p>
+        <p id="pinError" style="color:var(--danger);font-size:12px;margin-top:10px;display:none;">PIN incorrect</p>
+      </div>
+
+      <!-- ADMIN PANEL -->
+      <div class="admin-panel" id="adminPanel">
+        <header class="fid-hero" style="margin-bottom:30px;">
+          <span class="eyebrow">// Mode admin · Staff Melodia</span>
+          <h1>GESTION <span class="accent">CARTES.</span></h1>
+          <p class="lead">Recherche un client par son ID (sur sa carte) ou son nom. Tu peux ajouter/retirer des points, marquer une séance offerte comme utilisée.</p>
+        </header>
+
+        <div class="admin-search">
+          <input type="text" id="searchInput" placeholder="MEL-XXXXXXXX ou nom du client..." />
+          <button id="searchBtn">Chercher</button>
+        </div>
+
+        <div id="searchResult"></div>
+
+        <!-- Changement PIN + Outils admin -->
+        <div class="mc-block" style="margin-top:40px;">
+          <h3>Outils <span class="accent">admin</span></h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
+            <button class="mc-btn" id="changePinBtn">🔑 Changer le PIN admin</button>
+            <button class="mc-btn" id="exportBtn">📤 Exporter données (JSON)</button>
+            <button class="mc-btn" id="lockBtn">🔒 Verrouiller</button>
+            <button class="mc-btn" id="resetBtn" style="border-color:var(--danger);color:var(--danger);">⚠️ Reset toutes les cartes</button>
+          </div>
+        </div>
+
+        <div class="admin-note">
+          <b>// LIMITATION ACTUELLE (MVP)</b> · Cette interface modifie les données stockées dans <b>ce navigateur uniquement</b> (localStorage). Pour scanner les cartes des clients sur leur téléphone, il faut connecter à un backend (Supabase, Airtable ou serveur custom). C'est la prochaine étape technique avec l'app de scan.
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script>window.MELODIA_PAGE = 'admin'; window.MELODIA_BASE = '../';</script>
+  <script src="../js/cart.js" defer></script>
+  <script src="../js/layout.js" defer></script>
+  <script src="../js/fidelite.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" defer></script>
+  <script defer>
+    document.addEventListener('DOMContentLoaded', function () {
+      const F = window.MelodiaFidelite;
+      let unlocked = sessionStorage.getItem('melodia_admin_unlocked') === '1';
+
+      function showPanel() {
+        document.getElementById('lockScreen').style.display = 'none';
+        document.getElementById('adminPanel').classList.add('show');
+      }
+      function showLock() {
+        document.getElementById('lockScreen').style.display = '';
+        document.getElementById('adminPanel').classList.remove('show');
+      }
+
+      if (unlocked) showPanel(); else showLock();
+
+      document.getElementById('unlockBtn').addEventListener('click', tryUnlock);
+      document.getElementById('pinInput').addEventListener('keypress', function(e){
+        if (e.key === 'Enter') tryUnlock();
+      });
+
+      function tryUnlock() {
+        const pin = document.getElementById('pinInput').value;
+        if (F.checkAdminPin(pin)) {
+          sessionStorage.setItem('melodia_admin_unlocked', '1');
+          showPanel();
+        } else {
+          document.getElementById('pinError').style.display = 'block';
+          document.getElementById('pinInput').value = '';
+          setTimeout(() => { document.getElementById('pinError').style.display = 'none'; }, 2500);
+        }
+      }
+
+      document.getElementById('lockBtn').addEventListener('click', function(){
+        sessionStorage.removeItem('melodia_admin_unlocked');
+        location.reload();
+      });
+
+      document.getElementById('changePinBtn').addEventListener('click', function(){
+        const current = prompt('PIN actuel ?');
+        if (!F.checkAdminPin(current)) return alert('PIN incorrect.');
+        const newPin = prompt('Nouveau PIN (4-8 chiffres) ?');
+        if (!newPin || newPin.length < 4) return alert('PIN trop court.');
+        F.setAdminPin(newPin);
+        alert('PIN modifié avec succès.');
+      });
+
+      document.getElementById('exportBtn').addEventListener('click', function(){
+        const client = F.getClient();
+        if (!client) return alert('Aucune carte enregistrée dans ce navigateur.');
+        const json = JSON.stringify(client, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'melodia-' + client.shortId + '.json';
+        link.click();
+      });
+
+      document.getElementById('resetBtn').addEventListener('click', function(){
+        if (confirm('⚠️ Supprimer TOUTES les données de fidélité de ce navigateur ? Cette action est irréversible.')) {
+          if (confirm('Vraiment sûr ?')) {
+            localStorage.removeItem('melodia_client');
+            localStorage.removeItem('melodia_visits');
+            localStorage.removeItem('melodia_popup_shown');
+            alert('Données réinitialisées.');
+            location.reload();
+          }
+        }
+      });
+
+      // Recherche client
+      document.getElementById('searchBtn').addEventListener('click', searchClient);
+      document.getElementById('searchInput').addEventListener('keypress', function(e){
+        if (e.key === 'Enter') searchClient();
+      });
+
+      function searchClient() {
+        const q = document.getElementById('searchInput').value.trim().toUpperCase();
+        const client = F.getClient();
+        const resultEl = document.getElementById('searchResult');
+
+        if (!client) {
+          resultEl.innerHTML = '<div class="mc-block"><div class="mc-empty">Aucune carte enregistrée dans ce navigateur. (Pour gérer les cartes d\'autres clients, connecte un backend.)</div></div>';
+          return;
+        }
+        const fullName = (client.firstName + ' ' + client.lastName).toUpperCase();
+        if (q && !client.shortId.includes(q) && !fullName.includes(q)) {
+          resultEl.innerHTML = '<div class="mc-block"><div class="mc-empty">Aucun résultat pour "' + q + '". (Seule la carte de ce navigateur est accessible en MVP.)</div></div>';
+          return;
+        }
+        renderClientCard(client);
+      }
+
+      function renderClientCard(client) {
+        const tier = F.getTier(client.seancesTotales);
+        const next = F.getNextTier(tier);
+        const freeAvail = F.freeSessionsAvailable(client);
+
+        const html = `
+          <div class="mc-block" style="margin-bottom:20px;">
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;">
+              <div style="text-align:center;">
+                <div style="font-family:'Anton',sans-serif;font-size:36px;color:${tier.color};text-transform:uppercase;">${tier.name}</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.2em;color:var(--fg-dim);text-transform:uppercase;margin-top:4px;">${client.shortId}</div>
+              </div>
+              <div>
+                <h3 style="font-family:'Anton',sans-serif;font-size:28px;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;">${client.firstName} ${client.lastName}</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;color:var(--fg-dim);">
+                  <div>📱 ${client.phone || '—'}</div>
+                  <div>✉️ ${client.email || '—'}</div>
+                  <div>📅 Membre depuis ${F.formatMonthYear(client.createdAt)}</div>
+                  ${client.instagram ? '<div>📷 ' + client.instagram + '</div>' : '<div></div>'}
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:24px;">
+              <div style="text-align:center;padding:16px;border:1px solid var(--glass-border);border-radius:10px;background:rgba(0,0,0,0.2);">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.25em;color:var(--fg-dim);text-transform:uppercase;margin-bottom:4px;">// POINTS ACTIFS</div>
+                <div style="font-family:'Anton',sans-serif;font-size:36px;color:var(--accent);">${client.pointsActifs}/5</div>
+              </div>
+              <div style="text-align:center;padding:16px;border:1px solid var(--glass-border);border-radius:10px;background:rgba(0,0,0,0.2);">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.25em;color:var(--fg-dim);text-transform:uppercase;margin-bottom:4px;">// TOTAL SÉANCES</div>
+                <div style="font-family:'Anton',sans-serif;font-size:36px;color:var(--fg);">${client.seancesTotales}</div>
+              </div>
+              <div style="text-align:center;padding:16px;border:1px solid var(--glass-border);border-radius:10px;background:rgba(0,0,0,0.2);">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.25em;color:var(--gold);text-transform:uppercase;margin-bottom:4px;">// SÉANCES OFFERTES DISPO</div>
+                <div style="font-family:'Anton',sans-serif;font-size:36px;color:var(--gold);">${freeAvail}</div>
+              </div>
+            </div>
+
+            <div class="admin-actions">
+              <button class="admin-action-btn add" id="actionAdd">+1 POINT (séance enregistrée)</button>
+              <button class="admin-action-btn remove" id="actionRemove">−1 POINT (annulation)</button>
+              ${freeAvail > 0 ? '<button class="admin-action-btn use" id="actionUse">★ MARQUER 1 SÉANCE OFFERTE UTILISÉE</button>' : ''}
+            </div>
+          </div>
+
+          <div class="mc-block">
+            <h3>Historique <span class="accent">complet</span></h3>
+            <div class="mc-history" id="adminHistory"></div>
+          </div>
+        `;
+        document.getElementById('searchResult').innerHTML = html;
+
+        // History
+        const histEl = document.getElementById('adminHistory');
+        if (client.history && client.history.length) {
+          histEl.innerHTML = client.history.map(h => {
+            const sign = h.delta > 0 ? '+' : h.delta < 0 ? '−' : '·';
+            const cls = h.delta < 0 ? 'delta neg' : 'delta';
+            return `<div class="mc-hrow">
+              <div class="date">${F.formatDateTime(h.date)}</div>
+              <div class="lbl">${h.note}</div>
+              <div class="${cls}">${sign}${Math.abs(h.delta) || 0}</div>
+            </div>`;
+          }).join('');
+        } else {
+          histEl.innerHTML = '<div class="mc-empty">Aucune activité.</div>';
+        }
+
+        // Actions
+        document.getElementById('actionAdd').addEventListener('click', function(){
+          const note = prompt('Note (optionnel) :', 'Séance enregistrée');
+          F.addPoint(client, note || 'Séance enregistrée');
+          searchClient();
+        });
+        document.getElementById('actionRemove').addEventListener('click', function(){
+          if (!confirm('Retirer 1 point à ' + client.firstName + ' ?')) return;
+          const note = prompt('Raison (optionnel) :', 'Annulation séance');
+          F.removePoint(client, note || 'Annulation séance');
+          searchClient();
+        });
+        const useBtn = document.getElementById('actionUse');
+        if (useBtn) {
+          useBtn.addEventListener('click', function(){
+            if (!confirm('Marquer 1 séance offerte comme utilisée par ' + client.firstName + ' ?')) return;
+            F.useFreeSession(client, 'Séance offerte utilisée au studio');
+            searchClient();
+          });
+        }
+      }
+    });
+  </script>
+</body>
+</html>

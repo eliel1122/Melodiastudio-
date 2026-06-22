@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Contact · Melodia Studio · Abidjan</title>
+  <meta name="description" content="Contacter Melodia Studio Abidjan — adresse, téléphone, email, formulaire de devis. Réponse sous 24h." />
+  <meta name="theme-color" content="#08080C" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/reset.css" />
+  <link rel="stylesheet" href="../css/design-system.css" />
+  <link rel="stylesheet" href="../css/home.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="glow glow--blue" aria-hidden="true"></div>
+  <div class="glow glow--cyan" aria-hidden="true"></div>
+
+  <div id="nav-mount"></div>
+
+  <main>
+    <section class="page-hero">
+      <div class="page-hero__crumb">
+        <a href="../index.html">Accueil</a>
+        <span class="sep">/</span>
+        <span>Contact</span>
+      </div>
+      <p class="eyebrow"><span class="dot"></span> Parlons de ton projet</p>
+      <h1 class="display">On est <span class="display--accent">joignable.</span></h1>
+      <p class="lead">Une question, un devis, une visite ? Réponse rapide par email, WhatsApp ou via le formulaire ci-dessous.</p>
+    </section>
+
+    <section class="block">
+      <div class="contact-grid">
+        <form class="contact-form glass" onsubmit="event.preventDefault(); alert('Message envoyé ! On revient vers toi sous 24h.');">
+          <div class="field-row">
+            <div class="field">
+              <label for="c-name">Nom complet</label>
+              <input id="c-name" type="text" required placeholder="Ton nom" />
+            </div>
+            <div class="field">
+              <label for="c-phone">Téléphone / WhatsApp</label>
+              <input id="c-phone" type="tel" required placeholder="+225 ..." />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="c-email">Email</label>
+            <input id="c-email" type="email" required placeholder="ton@email.com" />
+          </div>
+
+          <div class="field">
+            <label for="c-subject">Sujet</label>
+            <select id="c-subject">
+              <option>Demande de devis</option>
+              <option>Réservation studio</option>
+              <option>Direction artistique projet</option>
+              <option>Visite du studio</option>
+              <option>Partenariat / collaboration</option>
+              <option>Autre</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="c-message">Ton message</label>
+            <textarea id="c-message" required placeholder="Décris ton projet : style, nombre de titres, deadline, budget si possible..."></textarea>
+          </div>
+
+          <button class="btn btn--primary btn--lg" type="submit" style="align-self: flex-start;">
+            <span>Envoyer le message</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M1 7h12M7 1l6 6-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </form>
+
+        <aside class="contact-info glass">
+          <h3>Coordonnées</h3>
+          <div class="contact-info__row">
+            <span class="contact-info__label">Adresse</span>
+            <span class="contact-info__value">Abidjan, Côte d'Ivoire</span>
+          </div>
+          <div class="contact-info__row">
+            <span class="contact-info__label">Email</span>
+            <a class="contact-info__value" href="mailto:contact@melodiastudio.ci">contact@melodiastudio.ci</a>
+          </div>
+          <div class="contact-info__row">
+            <span class="contact-info__label">Téléphone / WhatsApp</span>
+            <a class="contact-info__value" href="https://wa.me/" target="_blank" rel="noopener">+225 XX XX XX XX XX</a>
+          </div>
+          <div class="contact-info__row">
+            <span class="contact-info__label">Instagram</span>
+            <a class="contact-info__value" href="https://instagram.com" target="_blank" rel="noopener">@melodiastudio</a>
+          </div>
+          <div class="contact-info__row">
+            <span class="contact-info__label">Horaires</span>
+            <span class="contact-info__value">Lun—Sam · 9h—23h<br/>Dim · sur réservation</span>
+          </div>
+          <div class="contact-info__row">
+            <span class="contact-info__label">Réponse</span>
+            <span class="contact-info__value">Sous 24h en moyenne</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="cta-final__inner glass">
+        <p class="eyebrow"><span class="dot"></span> Plus rapide</p>
+        <h2 class="h-display">WhatsApp direct.</h2>
+        <p class="cta-final__sub">Pour les questions courtes, le WhatsApp est souvent le plus rapide. Réponse dans la journée.</p>
+        <div class="cta-final__buttons">
+          <a href="https://wa.me/" target="_blank" rel="noopener" class="btn btn--primary btn--lg">Ouvrir WhatsApp</a>
+          <a href="services.html" class="btn btn--ghost btn--lg">Réserver une session</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script>window.MELODIA_PAGE = 'contact'; window.MELODIA_BASE = '../';</script>
+  <script src="../js/cart.js" defer></script>
+  <script src="../js/layout.js" defer></script>
+</body>
+</html>

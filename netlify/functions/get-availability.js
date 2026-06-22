@@ -17,14 +17,15 @@ exports.handler = async (event) => {
 
   try {
     // 1. Réservations actives ce jour (statut En attente OU Confirmée)
-    const reservationsFilter = `AND(IS_SAME({Date}, '${date}', 'day'), OR({Statut} = 'En attente', {Statut} = 'Confirmée'))`;
+    // On formate explicitement {Date} en YYYY-MM-DD pour comparer string à string (plus robuste qu'IS_SAME)
+    const reservationsFilter = `AND(DATETIME_FORMAT({Date}, 'YYYY-MM-DD') = '${date}', OR({Statut} = 'En attente', {Statut} = 'Confirmée'))`;
     const reservations = await airtable(
-      `${airtableTable(TABLES.RESERVATIONS)}?filterByFormula=${encodeURIComponent(reservationsFilter)}&fields[]=Heure%20d%C3%A9but&fields[]=Dur%C3%A9e%20(h)&fields[]=Service`,
+      `${airtableTable(TABLES.RESERVATIONS)}?filterByFormula=${encodeURIComponent(reservationsFilter)}`,
       { method: 'GET' }
     );
 
     // 2. Créneaux bloqués ce jour
-    const bloquesFilter = `IS_SAME({Date}, '${date}', 'day')`;
+    const bloquesFilter = `DATETIME_FORMAT({Date}, 'YYYY-MM-DD') = '${date}'`;
     let bloques = { records: [] };
     try {
       bloques = await airtable(

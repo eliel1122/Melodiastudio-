@@ -25,11 +25,10 @@ exports.handler = async (event) => {
     // Récupère tous les blocages du mois
     let bloques = { records: [] };
     try {
-      const filter = `AND(IS_AFTER({Date}, '${monthStart}') = TRUE(), IS_BEFORE({Date}, '${monthEnd}') = TRUE())`;
-      // Simpler & robust: range filter
-      const simpleFilter = `AND({Date} >= '${monthStart}', {Date} <= '${monthEnd}')`;
+      // Format YYYY-MM-DD pour comparaison string à string, robuste à tous les formats Airtable
+      const filter = `AND(DATETIME_FORMAT({Date}, 'YYYY-MM-DD') >= '${monthStart}', DATETIME_FORMAT({Date}, 'YYYY-MM-DD') <= '${monthEnd}')`;
       bloques = await airtable(
-        `${airtableTable(TABLES.BLOQUES)}?filterByFormula=${encodeURIComponent(simpleFilter)}`,
+        `${airtableTable(TABLES.BLOQUES)}?filterByFormula=${encodeURIComponent(filter)}`,
         { method: 'GET' }
       );
     } catch (e) {

@@ -70,7 +70,103 @@ const state = {
   details: { name: '', email: '', phone: '', project: '' },
   // calendar UI state (per item in cart mode)
   calCursor: {},       // itemId -> { year, month }
+  // Disponibilités (par date) — cache live depuis /api/get-availability
+  availability: {},    // { 'YYYY-MM-DD': { loading, occupied, blockedAll, fetchedAt, error } }
+  // Jours bloqués (par mois) — cache live depuis /api/get-blocked-days
+  blockedDays: {},     // { 'YYYY-MM': { loading, dates: Set, fetchedAt, error } }
 };
+
+// =========================================================
+// AVAILABILITY — fetch les créneaux occupés depuis le backend
+// =========================================================
+async function fetchAvailability(dateIso) {
+  if (!dateIso) return;
+  const cache = state.availability[dateIso];
+  // Cache 5 min, sauf si erreur précédente → on retry
+  if (cache && !cache.error && Date.now() - cache.fetchedAt < 5 * 60 * 1000) return;
+
+  state.availability[dateIso] = { loading: true, occupied: [], blockedAll: false, fetchedAt: 0 };
+  renderActiveStep();
+
+  try {
+    const res = await fetch(`/api/get-availability?date=${encodeURIComponent(dateIso)}`);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+    const occupied = data.occupied || [];
+    // Journée entière bloquée : un blocage qui couvre 9h-21h
+    const open = (data.studioOpen?.startHour ?? 9) * 60;
+    const close = (data.studioOpen?.endHour ?? 21) * 60;
+    const blockedAll = occupied.some(o =>
+      o.source === 'blocage' && o.start <= open && o.end >= close
+    );
+
+    state.availability[dateIso] = {
+      loading: false,
+      occupied,
+      blockedAll,
+      fetchedAt: Date.now(),
+    };
+  } catch (e) {
+    console.error('[availability] fetch failed:', e);
+    state.availability[dateIso] = {
+      loading: false,
+      occupied: [],
+      blockedAll: false,
+      fetchedAt: Date.now(),
+      error: e.message,
+    };
+  }
+  renderActiveStep();
+}
+
+// Fetch les jours full-bloqués pour un mois donné (year, month 0-indexed JS)
+async function fetchBlockedDays(year, month) {
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const cache = state.blockedDays[monthKey];
+  if (cache && !cache.error && Date.now() - cache.fetchedAt < 10 * 60 * 1000) return;
+
+  state.blockedDays[monthKey] = { loading: true, dates: new Set(), fetchedAt: 0 };
+  try {
+    const res = await fetch(`/api/get-blocked-days?year=${year}&month=${month + 1}`);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    state.blockedDays[monthKey] = {
+      loading: false,
+      dates: new Set(data.blockedDays || []),
+      fetchedAt: Date.now(),
+    };
+    renderActiveStep();
+  } catch (e) {
+    console.warn('[blocked-days] fetch failed:', e.message);
+    state.blockedDays[monthKey] = {
+      loading: false,
+      dates: new Set(),
+      fetchedAt: Date.now(),
+      error: e.message,
+    };
+  }
+}
+
+// Détecte si un slot UI chevauche un créneau occupé
+function isSlotOccupied(slotId, occupied) {
+  if (!occupied || !occupied.length) return false;
+  // Format "s-14-16" → start=14, end=16 (heures)
+  let startMin, endMin;
+  const m = slotId.match(/^s-(\d+)-(\d+)$/);
+  if (m) {
+    startMin = parseInt(m[1], 10) * 60;
+    endMin = parseInt(m[2], 10) * 60;
+  } else if (slotId.startsWith('rdv-')) {
+    const hour = parseInt(slotId.replace('rdv-', ''), 10);
+    if (isNaN(hour)) return false;
+    startMin = hour * 60;
+    endMin = startMin + 30;
+  } else {
+    return false;
+  }
+  return occupied.some(o => startMin < o.end && endMin > o.start);
+}
 
 // =========================================================
 // INIT
@@ -292,6 +388,7 @@ function renderClassicDateStep(root) {
     state.date = iso;
     state.slot = null;
     renderActiveStep(); renderSteps(); renderSummary();
+    fetchAvailability(iso);  // déclenche le check des dispos backend
   });
 }
 
@@ -375,6 +472,7 @@ function renderCartPlanningStep(root) {
           item.planSlot = null;
         }
         renderActiveStep(); renderSummary(); renderSteps();
+        fetchAvailability(iso);  // déclenche le check des dispos backend
       });
 
       // Bind slot selection
@@ -510,6 +608,11 @@ function renderCalendarHTML(scope, year, month, selectedIso) {
   const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
   const today = new Date(); today.setHours(0, 0, 0, 0);
 
+  // Lookup cache jours bloqués pour ce mois
+  const monthKey = `${year}-${pad(month + 1)}`;
+  const blockedCache = state.blockedDays[monthKey];
+  const blockedDates = blockedCache?.dates || new Set();
+
   let cells = '';
   for (let i = 0; i < totalCells; i++) {
     const dayNum = i - startOffset + 1;
@@ -522,7 +625,11 @@ function renderCalendarHTML(scope, year, month, selectedIso) {
     const classes = ['calendar__day'];
     if (d < today) { classes.push('is-past'); cells += `<button class="${classes.join(' ')}" disabled>${dayNum}</button>`; continue; }
     const unavail = DATA.unavailable[iso];
-    if (unavail && unavail.includes('all')) { classes.push('is-unavailable'); cells += `<button class="${classes.join(' ')}" disabled>${dayNum}</button>`; continue; }
+    if ((unavail && unavail.includes('all')) || blockedDates.has(iso)) {
+      classes.push('is-unavailable');
+      cells += `<button class="${classes.join(' ')}" disabled title="Jour bloqué">${dayNum}</button>`;
+      continue;
+    }
     classes.push('is-available');
     if (selectedIso === iso) classes.push('is-selected');
     cells += `<button class="${classes.join(' ')}" data-iso="${iso}" data-scope="${scope}">${dayNum}</button>`;
@@ -561,6 +668,9 @@ function bindCalendar(scope, onPick) {
   document.querySelectorAll(`.calendar__day[data-scope="${scope}"]`).forEach((d) => {
     d.addEventListener('click', () => onPick(d.dataset.iso));
   });
+  // Déclenche le fetch des jours bloqués pour le mois affiché
+  const cursor = scope === '__classic' ? state.calCursor.__classic : state.calCursor[scope];
+  if (cursor) fetchBlockedDays(cursor.year, cursor.month);
 }
 
 function navCal(scope, delta) {
@@ -579,19 +689,74 @@ function navCal(scope, delta) {
 
 function renderSlotsHTML(dateIso, selectedSlot, duration) {
   const slots = generateSlots(duration || 0);
-  const unavail = dateIso ? (DATA.unavailable[dateIso] || []) : [];
-  const dayBlocked = unavail.includes('all');
+
+  // Si pas de date → tous les slots disabled (état initial)
+  if (!dateIso) {
+    return slots.map((s) => `
+      <button class="slot is-unavailable" disabled>
+        <div class="slot__time">${s.time}</div>
+        <div class="slot__label">${s.label}</div>
+      </button>
+    `).join('');
+  }
+
+  // Lookup cache dispos backend
+  const avail = state.availability[dateIso];
+
+  // Loading state
+  if (avail?.loading) {
+    return `
+      <div class="slots-state slots-state--loading" style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:12px;padding:32px;color:var(--fg-dim);">
+        <div style="width:18px;height:18px;border:2px solid rgba(30,144,255,0.25);border-top-color:#1E90FF;border-radius:50%;animation:mlcspin 0.8s linear infinite;"></div>
+        <span>Vérification des créneaux disponibles…</span>
+        <style>@keyframes mlcspin{to{transform:rotate(360deg)}}</style>
+      </div>
+    `;
+  }
+
+  // Error state
+  if (avail?.error) {
+    return `
+      <div class="slots-state slots-state--error" style="grid-column:1/-1;padding:24px;color:var(--danger,#FF4D5E);text-align:center;border:1px solid rgba(255,77,94,0.3);border-radius:12px;background:rgba(255,77,94,0.06);">
+        <p style="margin-bottom:8px;">Impossible de récupérer les disponibilités.</p>
+        <button class="btn btn--ghost" onclick="window.__mlcRetryAvail && window.__mlcRetryAvail('${dateIso}')">Réessayer</button>
+      </div>
+    `;
+  }
+
+  // Jour totalement bloqué (vacances)
+  if (avail?.blockedAll) {
+    return `
+      <div class="slots-state slots-state--blocked" style="grid-column:1/-1;padding:32px;color:var(--fg-dim);text-align:center;border:1px solid var(--glass-border,rgba(255,255,255,0.12));border-radius:12px;background:rgba(255,255,255,0.03);">
+        <p style="font-family:'Anton',sans-serif;font-size:22px;text-transform:uppercase;letter-spacing:0.3px;color:var(--fg);margin-bottom:6px;">Studio fermé ce jour</p>
+        <p style="font-size:13px;">Le studio est complet ou en pause cette date. Choisis un autre jour dans le calendrier.</p>
+      </div>
+    `;
+  }
+
+  const occupied = avail?.occupied || [];
+  // Compat legacy : DATA.unavailable hardcodé
+  const legacyUnavail = DATA.unavailable[dateIso] || [];
+  const dayBlocked = legacyUnavail.includes('all');
+
   return slots.map((s) => {
-    const isUnav = dayBlocked || !dateIso;
-    const isSel = selectedSlot === s.id;
+    const isOccupied = isSlotOccupied(s.id, occupied);
+    const isUnav = dayBlocked || isOccupied;
+    const isSel = !isUnav && selectedSlot === s.id;
     return `
       <button class="slot ${isUnav ? 'is-unavailable' : ''} ${isSel ? 'is-selected' : ''}" data-id="${s.id}" data-time="${s.time}" data-label="${s.label}" ${isUnav ? 'disabled' : ''}>
         <div class="slot__time">${s.time}</div>
-        <div class="slot__label">${s.label}${isUnav && dateIso ? ' · Indisponible' : ''}</div>
+        <div class="slot__label">${s.label}${isOccupied ? ' · Déjà pris' : isUnav ? ' · Indisponible' : ''}</div>
       </button>
     `;
   }).join('');
 }
+
+// Helper exposé pour le bouton "Réessayer"
+window.__mlcRetryAvail = function(dateIso) {
+  if (state.availability[dateIso]) delete state.availability[dateIso];
+  fetchAvailability(dateIso);
+};
 
 // =========================================================
 // SUMMARY

@@ -92,21 +92,35 @@ function preflight() {
 }
 
 // ---------- CallMeBot WhatsApp notification ----------
+// Supporte 1 ou plusieurs destinataires :
+//   CALLMEBOT_PHONE   = "2250700000000" ou "2250700000000,2250712345678"
+//   CALLMEBOT_APIKEY  = "1111111"       ou "1111111,2222222"
+// L'index N de la clé doit correspondre à l'index N du numéro.
 async function sendWhatsApp(message) {
-  const phone = process.env.CALLMEBOT_PHONE;
-  const apikey = process.env.CALLMEBOT_APIKEY;
-  if (!phone || !apikey) {
+  const phones = (process.env.CALLMEBOT_PHONE || '').split(',').map(s => s.trim()).filter(Boolean);
+  const apikeys = (process.env.CALLMEBOT_APIKEY || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  if (!phones.length || !apikeys.length) {
     console.log('[callmebot] skipped (env not set)');
     return { ok: false, skipped: true };
   }
-  try {
-    const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(message)}&apikey=${encodeURIComponent(apikey)}`;
-    const res = await fetch(url, { method: 'GET' });
-    return { ok: res.ok, status: res.status };
-  } catch (e) {
-    console.error('[callmebot] error:', e.message);
-    return { ok: false, error: e.message };
+  if (phones.length !== apikeys.length) {
+    console.warn(`[callmebot] mismatch: ${phones.length} phones vs ${apikeys.length} apikeys — using min count`);
   }
+
+  const n = Math.min(phones.length, apikeys.length);
+  const results = [];
+  for (let i = 0; i < n; i++) {
+    try {
+      const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phones[i])}&text=${encodeURIComponent(message)}&apikey=${encodeURIComponent(apikeys[i])}`;
+      const res = await fetch(url, { method: 'GET' });
+      results.push({ phone: phones[i], ok: res.ok, status: res.status });
+    } catch (e) {
+      console.error(`[callmebot] error for ${phones[i]}:`, e.message);
+      results.push({ phone: phones[i], ok: false, error: e.message });
+    }
+  }
+  return { ok: results.every(r => r.ok), recipients: results };
 }
 
 // ---------- Date helpers ----------

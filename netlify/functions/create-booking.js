@@ -71,13 +71,26 @@ exports.handler = async (event) => {
     }
 
     // 3. Notif WhatsApp au Boss
-    const summary = formatSummary(details, items, created);
+    const fid = client._fidelite || {};
+    const summary = formatSummary(details, items, created, fid);
     await sendWhatsApp(summary).catch(() => {});
 
     return jsonResponse(200, {
       ok: true,
       created,
       message: 'Demande enregistrée. On revient vers toi sous 24h.',
+      fidelite: {
+        tier: fid.tier || 'Bronze',
+        tierBefore: fid.tierBefore,
+        tierUpgraded: fid.tierBefore && fid.tier !== fid.tierBefore,
+        pointsActifs: fid.pointsActifs || 0,
+        seancesTotales: fid.seancesTotales || 0,
+        sessionsOffertesDispo: fid.sessionsOffertesGagnees || 0,
+        sessionUnlocked: !!fid.sessionUnlocked,
+        remise: remiseForTier(fid.tier || 'Bronze'),
+        progression: fid.progression || null,
+        isNew: !!fid.isNew,
+      },
     });
 
   } catch (e) {
@@ -126,7 +139,10 @@ async function findOrCreateClient(details) {
       `${airtableTable(TABLES.CLIENTS)}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=1`,
       { method: 'GET' }
     );
-    if (found.records?.length) return found.records[0];
+    if (found.records?.length) {
+      // Client existant → MAJ fidélité (+1 point + recalcul tier)
+      return await updateClientFidelite(found.records[0]);
+    }
   } catch (e) {
     console.log('[client] search failed, will create:', e.message);
   }
@@ -143,14 +159,94 @@ async function findOrCreateClient(details) {
         'Nom': nom,
         'Téléphone': phone,
         'Email': email,
-        'Tier': 'Bronze',
+        'Tier': computeTier(1),
         'Points actifs': 1,
         'Séances totales': 1,
       },
       typecast: true,
     }),
   });
+  // Attache une info fidélité au record retourné pour usage downstream
+  created._fidelite = {
+    tier: computeTier(1),
+    pointsActifs: 1,
+    seancesTotales: 1,
+    isNew: true,
+    sessionsOffertesDispo: 0,
+    progression: progressionToNextTier(1),
+  };
   return created;
+}
+
+async function updateClientFidelite(existingClient) {
+  const current = existingClient.fields || {};
+  const seancesTotales = (current['Séances totales'] || 0) + 1;
+  const pointsActifs = ((current['Points actifs'] || 0) + 1);
+
+  // Toutes les 5 séances → reset pointsActifs + débloque 1 séance offerte
+  let pointsActifsFinal = pointsActifs;
+  let sessionsOffertesGagnees = current['Sessions offertes gagnées'] || 0;
+  if (pointsActifs >= 5) {
+    pointsActifsFinal = 0;
+    sessionsOffertesGagnees += 1;
+  }
+
+  const tier = computeTier(seancesTotales);
+
+  const updated = await airtable(`${airtableTable(TABLES.CLIENTS)}/${existingClient.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      fields: {
+        'Tier': tier,
+        'Points actifs': pointsActifsFinal,
+        'Séances totales': seancesTotales,
+      },
+      typecast: true,
+    }),
+  });
+
+  updated._fidelite = {
+    tier,
+    tierBefore: current['Tier'] || 'Bronze',
+    pointsActifs: pointsActifsFinal,
+    seancesTotales,
+    sessionsOffertesGagnees,
+    sessionUnlocked: pointsActifs >= 5,
+    isNew: false,
+    progression: progressionToNextTier(seancesTotales),
+  };
+  return updated;
+}
+
+function computeTier(seancesTotales) {
+  if (seancesTotales >= 30) return 'Platinum';
+  if (seancesTotales >= 15) return 'Gold';
+  if (seancesTotales >= 5)  return 'Argent';
+  return 'Bronze';
+}
+
+function progressionToNextTier(seancesTotales) {
+  const thresholds = [
+    { tier: 'Argent',   min: 5  },
+    { tier: 'Gold',     min: 15 },
+    { tier: 'Platinum', min: 30 },
+  ];
+  const next = thresholds.find(t => seancesTotales < t.min);
+  if (!next) return { isMax: true };
+  return {
+    isMax: false,
+    nextTier: next.tier,
+    needed: next.min - seancesTotales,
+  };
+}
+
+function remiseForTier(tier) {
+  switch (tier) {
+    case 'Argent':   return 5;
+    case 'Gold':     return 10;
+    case 'Platinum': return 15;
+    default:         return 0;
+  }
 }
 
 function generateRef() {
@@ -162,16 +258,26 @@ function generateRef() {
   return `MEL-${y}${m}${day}-${rand}`;
 }
 
-function formatSummary(details, items, created) {
+function formatSummary(details, items, created, fid) {
   const lines = [
     `🎙️ NOUVELLE RÉSERVATION MELODIA`,
     ``,
     `Client : ${details.name}`,
     `Tél : ${details.phone}`,
     `Email : ${details.email}`,
-    ``,
-    `Prestations :`,
   ];
+  if (fid) {
+    if (fid.isNew) {
+      lines.push(`✨ NOUVEAU CLIENT (carte Bronze créée, 1 point offert)`);
+    } else {
+      let line = `🎖️ Fidélité : ${fid.tier} · ${fid.seancesTotales} séances totales · ${fid.pointsActifs}/5 points actifs`;
+      if (fid.sessionUnlocked) line += ` · ⭐ 1 SÉANCE OFFERTE DÉBLOQUÉE`;
+      if (fid.tierBefore && fid.tier !== fid.tierBefore) line += ` · 🆙 PROMOTION ${fid.tierBefore} → ${fid.tier}`;
+      lines.push(line);
+    }
+  }
+  lines.push(``);
+  lines.push(`Prestations :`);
   items.forEach((it, i) => {
     lines.push(`• ${mapService(it.service)} — ${it.date} ${it.slotTime || ''} (${it.duration}h) [${created[i]?.ref || '?'}]`);
   });

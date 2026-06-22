@@ -891,6 +891,38 @@ async function handleSubmit() {
       : `ta session ${DATA.services.find(s => s.id === state.service)?.name.toLowerCase() || 'studio'} du ${formatDateLabel(state.date)}`;
 
     const refsText = (data.created || []).map(c => c.ref).filter(Boolean).join(' · ');
+    const fid = data.fidelite || {};
+
+    // Bloc fidélité custom selon le contexte
+    let fidBlock = '';
+    if (fid.tier) {
+      const tierColors = { Bronze: '#CD7F32', Argent: '#B8C5D6', Gold: '#E5B544', Platinum: '#E5E4E2' };
+      const tierColor = tierColors[fid.tier] || '#1E90FF';
+      let fidTitle = '';
+      let fidMsg = '';
+      if (fid.isNew) {
+        fidTitle = '✨ Bienvenue dans la family Melodia';
+        fidMsg = `Ta carte fidélité <b style="color:${tierColor}">${fid.tier}</b> est créée. 1 point offert à l'inscription, 4 séances de plus pour passer Argent et débloquer −5%.`;
+      } else if (fid.tierUpgraded) {
+        fidTitle = `🎉 Promotion ${fid.tierBefore} → ${fid.tier} !`;
+        fidMsg = `Bravo, tu débloques le statut <b style="color:${tierColor}">${fid.tier}</b> et la remise <b>−${fid.remise}%</b> sur tes prochaines réservations.`;
+      } else if (fid.sessionUnlocked) {
+        fidTitle = '⭐ Séance offerte débloquée !';
+        fidMsg = `Tu as atteint 5 points actifs. Ta prochaine séance est <b>offerte</b> ! On te confirme par message.`;
+      } else if (fid.progression && !fid.progression.isMax) {
+        fidTitle = `🎖️ Niveau ${fid.tier}`;
+        fidMsg = `${fid.pointsActifs}/5 points actifs · ${fid.progression.needed} séance${fid.progression.needed > 1 ? 's' : ''} de plus pour passer <b style="color:${tierColor}">${fid.progression.nextTier}</b>.`;
+      } else {
+        fidTitle = `💎 Niveau ${fid.tier} (max)`;
+        fidMsg = `Statut maximum atteint. Remise <b>−${fid.remise}%</b> appliquée sur cette réservation et les suivantes.`;
+      }
+      fidBlock = `
+        <div style="margin-top:8px;padding:18px 24px;border:1px solid ${tierColor};border-radius:14px;background:linear-gradient(135deg,rgba(30,144,255,0.06),transparent);max-width:520px;">
+          <p style="font-family:'Anton',sans-serif;font-size:18px;text-transform:uppercase;letter-spacing:0.4px;color:${tierColor};margin:0 0 6px;">${fidTitle}</p>
+          <p style="font-size:13px;color:var(--fg-dim);line-height:1.55;margin:0;">${fidMsg}</p>
+        </div>
+      `;
+    }
 
     main.innerHTML = `
       <div style="text-align:center;padding:4rem 2rem;display:flex;flex-direction:column;gap:1.5rem;align-items:center;">
@@ -900,7 +932,11 @@ async function handleSubmit() {
         <h2 class="h-display" style="margin:0;">Demande envoyée.</h2>
         <p style="max-width:480px;color:var(--fg-dim);line-height:1.6;">Merci ${state.details.name}, on revient vers toi sous 24h pour confirmer ${summaryText}.</p>
         ${refsText ? `<p style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.15em;color:var(--fg-low);text-transform:uppercase;">Référence : ${refsText}</p>` : ''}
-        <a href="../index.html" class="btn btn--primary btn--lg">Retour à l'accueil</a>
+        ${fidBlock}
+        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+          <a href="../index.html" class="btn btn--primary btn--lg">Retour à l'accueil</a>
+          <a href="fidelite.html" class="btn btn--ghost btn--lg">Voir ma fidélité</a>
+        </div>
       </div>
     `;
   } catch (e) {

@@ -77,7 +77,7 @@ exports.handler = async (event) => {
 
     // Format un récap WhatsApp pour le client (à envoyer par lui via wa.me)
     const recapClient = formatRecapClient(details, items, created, fid);
-    const studioPhone = (process.env.STUDIO_WHATSAPP || '2250700000000').replace(/\D/g, '');
+    const studioPhone = (process.env.STUDIO_WHATSAPP || '2250718415131').replace(/\D/g, '');
 
     return jsonResponse(200, {
       ok: true,

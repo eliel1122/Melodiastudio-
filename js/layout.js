@@ -80,10 +80,11 @@
           </div>
           <div class="footer__col">
             <h4>Contact</h4>
-            <a href="${BASE}pages/contact.html">Abidjan, Côte d'Ivoire</a>
-            <a href="mailto:contact@melodiastudio.ci">contact@melodiastudio.ci</a>
-            <a href="https://instagram.com" target="_blank" rel="noopener">Instagram</a>
-            <a href="https://wa.me/" target="_blank" rel="noopener">WhatsApp</a>
+            <a href="https://www.google.com/maps?q=82HW%2BW6+Abidjan" target="_blank" rel="noopener">Cocody Riviera 4 M'pouto<br>La harpe mélodieuse</a>
+            <a href="https://wa.me/2250718415131" target="_blank" rel="noopener">WhatsApp · +225 07 18 41 51 31</a>
+            <a href="mailto:contact.melodiastud@gmail.com">contact.melodiastud@gmail.com</a>
+            <a href="https://www.instagram.com/melodia.studi0" target="_blank" rel="noopener">Instagram · @melodia.studi0</a>
+            <a href="https://www.tiktok.com/@melodia.studi0" target="_blank" rel="noopener">TikTok · @melodia.studi0</a>
           </div>
         </div>
       </div>

@@ -669,14 +669,20 @@ function formatDateLabel(iso) {
 // =========================================================
 // SUBMIT
 // =========================================================
-function handleSubmit() {
+async function handleSubmit() {
   const payload = state.mode === 'cart'
     ? {
         mode: 'cart',
-        items: state.items.map((it) => ({
-          service: it.service, option: it.option, qty: it.qty, price: it.price, duration: it.duration,
-          date: it.planDate, slot: it.planSlot, slotTime: it.planSlotTime, slotLabel: it.planSlotLabel,
-        })),
+        items: state.items.map((it) => {
+          const svc = DATA.services.find(s => s.id === it.service);
+          return {
+            service: it.service, option: it.option, qty: it.qty, price: it.price,
+            duration: svc?.duration || it.duration || 1,
+            date: it.planDate, planDate: it.planDate,
+            slot: it.planSlot, slotTime: it.planSlotTime, planSlotTime: it.planSlotTime,
+            slotLabel: it.planSlotLabel,
+          };
+        }),
         details: state.details,
         createdAt: new Date().toISOString(),
       }
@@ -685,29 +691,69 @@ function handleSubmit() {
         service: state.service,
         date: state.date,
         slot: state.slot, slotTime: state.slotTime, slotLabel: state.slotLabel,
+        duration: DATA.services.find(s => s.id === state.service)?.duration || 1,
         details: state.details,
         createdAt: new Date().toISOString(),
       };
 
-  console.log('[melodia] booking payload (à envoyer à Airtable plus tard):', payload);
-
-  // Clear cart on successful submit (if in cart mode)
-  if (state.mode === 'cart') window.MelodiaCart.clear();
-
-  const summaryText = state.mode === 'cart'
-    ? `${state.items.length} service${state.items.length > 1 ? 's' : ''} planifié${state.items.length > 1 ? 's' : ''}`
-    : `ta session ${DATA.services.find(s => s.id === state.service)?.name.toLowerCase() || 'studio'} du ${formatDateLabel(state.date)}`;
-
-  document.getElementById('booking-main').innerHTML = `
-    <div style="text-align: center; padding: 4rem 2rem; display: flex; flex-direction: column; gap: 1.5rem; align-items: center;">
-      <div style="width: 72px; height: 72px; border-radius: 50%; background: rgba(30,144,255,0.15); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(30,144,255,0.4);">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-11" stroke="#1E90FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-      <h2 class="h-display" style="margin: 0;">Demande envoyée.</h2>
-      <p style="max-width: 480px; color: var(--fg-dim); line-height: 1.6;">Merci ${state.details.name}, on revient vers toi sous 24h pour confirmer ${summaryText}.</p>
-      <a href="../index.html" class="btn btn--primary btn--lg">Retour à l'accueil</a>
+  // UI : passage en mode "envoi en cours"
+  const main = document.getElementById('booking-main');
+  main.innerHTML = `
+    <div style="text-align:center;padding:4rem 2rem;display:flex;flex-direction:column;gap:1.5rem;align-items:center;">
+      <div class="mlc-spinner" style="width:48px;height:48px;border:3px solid rgba(30,144,255,0.25);border-top-color:#1E90FF;border-radius:50%;animation:mlcspin 0.8s linear infinite;"></div>
+      <p style="color:var(--fg-dim);">Envoi de ta demande...</p>
+      <style>@keyframes mlcspin{to{transform:rotate(360deg)}}</style>
     </div>
   `;
+
+  try {
+    const res = await fetch('/api/create-booking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+
+    // SUCCESS — clear cart si mode cart
+    if (state.mode === 'cart') window.MelodiaCart.clear();
+
+    const summaryText = state.mode === 'cart'
+      ? `${state.items.length} service${state.items.length > 1 ? 's' : ''} planifié${state.items.length > 1 ? 's' : ''}`
+      : `ta session ${DATA.services.find(s => s.id === state.service)?.name.toLowerCase() || 'studio'} du ${formatDateLabel(state.date)}`;
+
+    const refsText = (data.created || []).map(c => c.ref).filter(Boolean).join(' · ');
+
+    main.innerHTML = `
+      <div style="text-align:center;padding:4rem 2rem;display:flex;flex-direction:column;gap:1.5rem;align-items:center;">
+        <div style="width:72px;height:72px;border-radius:50%;background:rgba(30,144,255,0.15);display:flex;align-items:center;justify-content:center;border:1px solid rgba(30,144,255,0.4);">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-11" stroke="#1E90FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2 class="h-display" style="margin:0;">Demande envoyée.</h2>
+        <p style="max-width:480px;color:var(--fg-dim);line-height:1.6;">Merci ${state.details.name}, on revient vers toi sous 24h pour confirmer ${summaryText}.</p>
+        ${refsText ? `<p style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.15em;color:var(--fg-low);text-transform:uppercase;">Référence : ${refsText}</p>` : ''}
+        <a href="../index.html" class="btn btn--primary btn--lg">Retour à l'accueil</a>
+      </div>
+    `;
+  } catch (e) {
+    console.error('[booking] submit failed:', e);
+    main.innerHTML = `
+      <div style="text-align:center;padding:4rem 2rem;display:flex;flex-direction:column;gap:1.5rem;align-items:center;">
+        <div style="width:72px;height:72px;border-radius:50%;background:rgba(255,77,94,0.15);display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,77,94,0.4);">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 17.01v-.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#FF4D5E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2 class="h-display" style="margin:0;">Un souci est survenu.</h2>
+        <p style="max-width:520px;color:var(--fg-dim);line-height:1.6;">${e.message || 'Réessaie dans un instant. Si le problème persiste, écris-nous directement sur WhatsApp.'}</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+          <button class="btn btn--primary btn--lg" onclick="location.reload()">Réessayer</button>
+          <a href="https://wa.me/2250700000000" class="btn btn--ghost btn--lg" target="_blank">Continuer sur WhatsApp</a>
+        </div>
+      </div>
+    `;
+  }
 }
 
 // Re-bind chip clicks to allow navigating to past steps

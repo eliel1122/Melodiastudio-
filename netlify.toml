@@ -1,0 +1,28 @@
+# Melodia Studio — Netlify config
+# Sert le site statique + expose les Functions sous /api/*
+
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = []
+
+# Routes /api/* → Netlify Functions (raccourci propre)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Headers : pas de cache sur le HTML (pour propager les updates direct)
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Cache long sur les assets immuables (frames webp etc)
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

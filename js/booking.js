@@ -941,7 +941,14 @@ async function handleSubmit() {
         <p style="max-width:480px;color:var(--fg-dim);line-height:1.6;">Merci ${state.details.name}, on revient vers toi sous 24h pour confirmer ${summaryText}.</p>
         ${refsText ? `<p style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.15em;color:var(--fg-low);text-transform:uppercase;">Référence : ${refsText}</p>` : ''}
         ${fidBlock}
-        ${waButton ? `<div style="margin-top:8px;">${waButton}<p style="font-size:11px;color:var(--fg-low);margin-top:8px;">Un clic, ton récap arrive sur WhatsApp Melodia · réponse rapide.</p></div>` : ''}
+        <div style="margin-top:8px;padding:14px 20px;border:1px solid rgba(255,193,7,0.3);background:rgba(255,193,7,0.06);border-radius:12px;max-width:520px;display:flex;gap:10px;align-items:flex-start;text-align:left;">
+          <span style="font-size:18px;flex-shrink:0;">📧</span>
+          <p style="font-size:12.5px;color:var(--fg-dim);line-height:1.55;margin:0;">
+            Un email de confirmation arrive d'ici quelques minutes.
+            <b style="color:var(--fg);">Pense à vérifier tes spams</b> si tu ne le vois pas (et marque-nous comme "non spam" pour les prochains 🙏).
+          </p>
+        </div>
+        ${waButton ? `<div style="margin-top:8px;">${waButton}<p style="font-size:11px;color:var(--fg-low);margin-top:8px;">Plus rapide : ton récap arrive sur WhatsApp Melodia en 1 clic.</p></div>` : ''}
         <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
           <a href="../index.html" class="btn btn--primary btn--lg">Retour à l'accueil</a>
           <a href="fidelite.html" class="btn btn--ghost btn--lg">Voir ma fidélité</a>

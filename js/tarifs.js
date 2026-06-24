@@ -9,7 +9,7 @@
       id: 'pack-silver',
       service: 'Pack Silver',
       option: '2h studio + pré-mix + photos',
-      price: 50000,
+      price: 40000,
       duration: 2,
     },
     gold: {

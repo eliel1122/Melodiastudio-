@@ -2072,3 +2072,25 @@ body.nav-mobile-open { overflow: hidden; }
 @media (max-width: 540px) {
   .clips-grid { grid-template-columns: 1fr; }
 }
+
+/* =====================================================
+   PORTFOLIO ITEM avec photo réelle d'artiste
+   ===================================================== */
+.portfolio-item.has-photo {
+  background: var(--bg-2, #0D0D14);
+}
+.portfolio-item__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  transition: transform 0.6s ease;
+}
+.portfolio-item.has-photo:hover .portfolio-item__img {
+  transform: scale(1.05);
+}
+.portfolio-item.has-photo::before {
+  background: linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.85) 100%);
+}

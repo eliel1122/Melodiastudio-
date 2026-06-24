@@ -69,43 +69,62 @@
         <p class="section-sub">Notre décor cinématique a servi à des clips, teasers et contenus réseaux. Voici quelques-uns.</p>
       </header>
 
-      <div class="portfolio-grid">
-        <article class="portfolio-item">
-          <div class="portfolio-item__artist">Clip · 01</div>
-          <div class="portfolio-item__meta"><span>Hip-hop</span><span class="dot">·</span><span>Clip officiel</span></div>
+      <div class="clips-grid">
+        <article class="clip-card" data-clip="clip-01">
+          <div class="clip-card__media">
+            <video
+              class="clip-card__video"
+              data-src="../assets/clips/clip-01.mp4"
+              poster="../assets/clips/posters/clip-01.webp"
+              muted loop playsinline preload="none"
+              aria-label="Clip Artiste 01"></video>
+            <div class="clip-card__fallback" aria-hidden="true">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" opacity="0.5"/></svg>
+              <span>Clip à venir</span>
+            </div>
+          </div>
+          <div class="clip-card__meta">
+            <div class="clip-card__artist">Artiste · 01</div>
+            <div class="clip-card__tag"><span>Hip-hop</span><span class="dot">·</span><span>Clip officiel</span></div>
+          </div>
         </article>
-        <article class="portfolio-item">
-          <div class="portfolio-item__artist">Clip · 02</div>
-          <div class="portfolio-item__meta"><span>Afrobeats</span><span class="dot">·</span><span>Visualizer</span></div>
-        </article>
-        <article class="portfolio-item">
-          <div class="portfolio-item__artist">Clip · 03</div>
-          <div class="portfolio-item__meta"><span>R&amp;B</span><span class="dot">·</span><span>Teaser release</span></div>
-        </article>
-      </div>
-    </section>
 
-    <section class="block">
-      <header class="section-header">
-        <p class="eyebrow"><span class="dot"></span> Ce qu'ils en disent</p>
-        <h2 class="h-display">Témoignages.</h2>
-      </header>
+        <article class="clip-card" data-clip="clip-02">
+          <div class="clip-card__media">
+            <video
+              class="clip-card__video"
+              data-src="../assets/clips/clip-02.mp4"
+              poster="../assets/clips/posters/clip-02.webp"
+              muted loop playsinline preload="none"
+              aria-label="Clip Artiste 02"></video>
+            <div class="clip-card__fallback" aria-hidden="true">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" opacity="0.5"/></svg>
+              <span>Clip à venir</span>
+            </div>
+          </div>
+          <div class="clip-card__meta">
+            <div class="clip-card__artist">Artiste · 02</div>
+            <div class="clip-card__tag"><span>Afrobeats</span><span class="dot">·</span><span>Visualizer</span></div>
+          </div>
+        </article>
 
-      <div class="cards">
-        <article class="card glass">
-          <p class="card__num mono">★ ★ ★ ★ ★</p>
-          <p style="color: var(--fg-dim); line-height: 1.6;">"Ambiance vraiment unique au studio. L'ingé son a tout de suite compris ce que je voulais, le résultat est dingue."</p>
-          <p class="mono" style="margin-top: auto; color: var(--accent);">— Artiste rap, Abidjan</p>
-        </article>
-        <article class="card glass card--featured">
-          <p class="card__num mono">★ ★ ★ ★ ★</p>
-          <p style="color: var(--fg-dim); line-height: 1.6;">"Mon EP est sorti grâce à Melodia. Pas juste le son — toute la direction artistique. Ils m'ont accompagné de A à Z."</p>
-          <p class="mono" style="margin-top: auto; color: var(--accent);">— Artiste afrobeats</p>
-        </article>
-        <article class="card glass">
-          <p class="card__num mono">★ ★ ★ ★ ★</p>
-          <p style="color: var(--fg-dim); line-height: 1.6;">"Le matos est sérieux, l'oreille est juste, et l'humain est là. Trois sessions chez eux et ça commence à compter."</p>
-          <p class="mono" style="margin-top: auto; color: var(--accent);">— Producteur, label indé</p>
+        <article class="clip-card" data-clip="clip-03">
+          <div class="clip-card__media">
+            <video
+              class="clip-card__video"
+              data-src="../assets/clips/clip-03.mp4"
+              poster="../assets/clips/posters/clip-03.webp"
+              muted loop playsinline preload="none"
+              aria-label="Clip Artiste 03"></video>
+            <div class="clip-card__fallback" aria-hidden="true">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" opacity="0.5"/></svg>
+              <span>Clip à venir</span>
+            </div>
+          </div>
+          <div class="clip-card__meta">
+            <div class="clip-card__artist">Artiste · 03</div>
+            <div class="clip-card__tag"><span>R&amp;B</span><span class="dot">·</span><span>Teaser release</span></div>
+          </div>
         </article>
       </div>
     </section>
@@ -128,5 +147,6 @@
   <script>window.MELODIA_PAGE = 'portfolio'; window.MELODIA_BASE = '../';</script>
   <script src="../js/cart.js" defer></script>
   <script src="../js/layout.js" defer></script>
+  <script src="../js/clips.js" defer></script>
 </body>
 </html>

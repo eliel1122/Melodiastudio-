@@ -1765,7 +1765,10 @@ body.nav-mobile-open { overflow: hidden; }
    ========================================================= */
 @media (max-width: 980px) {
   .service-detail { grid-template-columns: 1fr; gap: var(--space-6); }
-  .price-card { position: relative; top: 0; }
+  /* Sur mobile/tablette portrait : on remonte la carte tarifs + ajout panier au-dessus du contenu
+     pour que l'user voit le prix et puisse réserver sans scroller tout le déroulé */
+  .service-detail__content { order: 2; }
+  .price-card { position: relative; top: 0; order: 1; }
   .cart-layout { grid-template-columns: 1fr; }
   .cart-summary { position: relative; top: 0; }
   .booking-layout { grid-template-columns: 1fr; }

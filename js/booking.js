@@ -966,7 +966,7 @@ async function handleSubmit() {
         <p style="max-width:520px;color:var(--fg-dim);line-height:1.6;">${e.message || 'Réessaie dans un instant. Si le problème persiste, écris-nous directement sur WhatsApp.'}</p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
           <button class="btn btn--primary btn--lg" onclick="location.reload()">Réessayer</button>
-          <a href="https://wa.me/2250703387738" class="btn btn--ghost btn--lg" target="_blank">Continuer sur WhatsApp</a>
+          <a href="https://wa.me/2250703387738?text=Salut%20Melodia%20%F0%9F%91%8B%20J%27ai%20eu%20un%20souci%20en%20r%C3%A9servant%20en%20ligne." class="btn btn--ghost btn--lg" target="_blank">Continuer sur WhatsApp</a>
         </div>
       </div>
     `;

@@ -81,7 +81,7 @@
           <div class="footer__col">
             <h4>Contact</h4>
             <a href="https://www.google.com/maps?q=82HW%2BW6+Abidjan" target="_blank" rel="noopener">Cocody Riviera 4 M'pouto<br>La harpe mélodieuse</a>
-            <a href="https://wa.me/2250703387738" target="_blank" rel="noopener">WhatsApp · +225 07 03 38 77 38</a>
+            <a href="https://wa.me/2250703387738?text=Salut%20Melodia%20%F0%9F%91%8B%20J%27aimerais%20en%20savoir%20plus." target="_blank" rel="noopener">WhatsApp · +225 07 03 38 77 38</a>
             <a href="mailto:contact.melodiastud@gmail.com">contact.melodiastud@gmail.com</a>
             <a href="https://www.instagram.com/melodia.studi0" target="_blank" rel="noopener">Instagram · @melodia.studi0</a>
             <a href="https://www.tiktok.com/@melodia.studi0" target="_blank" rel="noopener">TikTok · @melodia.studi0</a>

@@ -653,3 +653,29 @@ main { position: relative; z-index: 1; }
   .footer__top { grid-template-columns: 1fr; gap: var(--space-7); }
   .footer__cols { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* =====================================================
+   BOUTON WHATSAPP icône (raccourci hero)
+   ===================================================== */
+.btn--whatsapp {
+  background: #25D366 !important;
+  border-color: #25D366 !important;
+  color: #fff !important;
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  padding: 0 !important;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s;
+  flex-shrink: 0;
+}
+.btn--whatsapp:hover {
+  transform: translateY(-2px) scale(1.05);
+  background: #20bd5a !important;
+  border-color: #20bd5a !important;
+  box-shadow: 0 8px 20px -4px rgba(37, 211, 102, 0.5);
+}
+.btn--whatsapp svg { display: block; }

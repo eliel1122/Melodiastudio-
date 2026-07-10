@@ -264,3 +264,37 @@ body {
 @media (max-width: 720px) {
   .section-header { margin-bottom: var(--space-7); }
 }
+
+/* =========================================================
+   PROMOTIONS (bannière home + prix barrés) — cf. js/promo.js
+   ========================================================= */
+.promo-banner {
+  display: flex; align-items: center; gap: var(--space-4);
+  margin-top: var(--space-6); padding: 14px 16px;
+  border-radius: var(--r-lg); text-decoration: none; color: var(--fg);
+  background: linear-gradient(120deg, rgba(255,77,94,0.14), rgba(30,144,255,0.10));
+  border: 1px solid rgba(255,77,94,0.35);
+  position: relative; overflow: hidden; max-width: 560px;
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.promo-banner:hover { transform: translateY(-2px); border-color: rgba(255,77,94,0.6); box-shadow: 0 12px 40px rgba(255,77,94,0.18); }
+.promo-banner__badge {
+  flex-shrink: 0; font-family: var(--font-display); font-size: 24px; line-height: 1;
+  background: var(--danger); color: #fff; border-radius: var(--r-md);
+  padding: 12px 12px; box-shadow: 0 0 24px rgba(255,77,94,0.5);
+}
+.promo-banner__body { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.promo-banner__eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--danger); }
+.promo-banner__headline { font-family: var(--font-display); font-size: 21px; text-transform: uppercase; line-height: 1; }
+.promo-banner__sub { font-family: var(--font-mono); font-size: 11px; color: var(--fg-dim); letter-spacing: .04em; }
+.promo-banner__sub s { color: var(--fg-low); }
+.promo-banner__cta { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: var(--accent); white-space: nowrap; }
+@media (max-width: 520px) {
+  .promo-banner { flex-wrap: wrap; }
+  .promo-banner__cta { width: 100%; justify-content: center; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--glass-border); }
+}
+/* prix promo (barré + nouveau + tag), utilisable partout */
+.promo-old { color: var(--fg-low); text-decoration: line-through; opacity: .7; margin-right: 5px; }
+.promo-new { color: var(--accent); font-weight: 700; }
+.promo-tag { font-family: var(--font-mono); font-size: 9px; letter-spacing: .08em; background: var(--danger); color: #fff; padding: 2px 6px; border-radius: var(--r-full); vertical-align: middle; margin-left: 4px; }
+.price-option.is-promo { border-color: rgba(255,77,94,0.40); }

@@ -45,7 +45,7 @@ main { position: relative; z-index: 1; }
 /* ============= HERO ============= */
 .hero {
   min-height: 100vh;
-  padding: 140px var(--pad-x) 80px;
+  padding: 140px var(--pad-x) 48px;
   display: grid;
   grid-template-columns: 1.05fr 1fr;
   gap: var(--space-7);
@@ -65,14 +65,16 @@ main { position: relative; z-index: 1; }
 .hero__cta { display: flex; gap: var(--space-3); flex-wrap: wrap; }
 
 .hero__stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-5);
-  margin-top: var(--space-5);
-  padding-top: var(--space-6);
+  margin-top: calc(-1 * var(--space-3));
+  padding-top: var(--space-4);
   border-top: 1px solid var(--glass-border);
 }
 .stat { display: flex; flex-direction: column; gap: 4px; }
+.hero__stats-wa { flex-shrink: 0; }
 .stat__num {
   font-family: var(--font-display);
   font-size: 36px;
@@ -139,8 +141,8 @@ main { position: relative; z-index: 1; }
     min-height: auto;
     padding-top: 120px;
   }
-  .hero__stage { min-height: 420px; }
-  #mic-canvas { min-height: 420px; }
+  .hero__stage { min-height: 380px; margin-top: -20px; }
+  #mic-canvas { min-height: 380px; }
 }
 @media (max-width: 520px) {
   .hero__stats { grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
@@ -149,7 +151,7 @@ main { position: relative; z-index: 1; }
 
 /* ============= STUDIO TOUR (panoramic interactive video) ============= */
 .studio-tour {
-  padding: var(--space-10) var(--pad-x) var(--space-9);
+  padding: var(--space-8) var(--pad-x) var(--space-7);
   max-width: var(--container);
   margin: 0 auto;
 }
@@ -327,7 +329,7 @@ main { position: relative; z-index: 1; }
 /* ============= STORY (decomposition narrative) — 2-col grid ============= */
 .story {
   position: relative;
-  padding: var(--space-10) var(--pad-x);
+  padding: var(--space-8) var(--pad-x);
   max-width: var(--container);
   margin: 0 auto;
 }
@@ -413,7 +415,7 @@ main { position: relative; z-index: 1; }
 
 /* ============= SERVICES TEASER ============= */
 .services-teaser {
-  padding: var(--space-10) var(--pad-x);
+  padding: var(--space-8) var(--pad-x);
   max-width: var(--container);
   margin: 0 auto;
 }
@@ -480,7 +482,7 @@ main { position: relative; z-index: 1; }
 
 /* ============= ARTISTS BAND ============= */
 .artists {
-  padding: var(--space-10) 0 var(--space-9);
+  padding: var(--space-8) 0 var(--space-7);
   position: relative;
 }
 .artists .section-header { padding: 0 var(--pad-x); }
@@ -579,7 +581,7 @@ main { position: relative; z-index: 1; }
 
 /* ============= FINAL CTA ============= */
 .cta-final {
-  padding: var(--space-9) var(--pad-x) var(--space-10);
+  padding: var(--space-7) var(--pad-x) var(--space-8);
   max-width: var(--container);
   margin: 0 auto;
 }

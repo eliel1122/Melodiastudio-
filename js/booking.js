@@ -174,6 +174,22 @@ function isSlotOccupied(slotId, occupied) {
 function init() {
   try {
     console.log('[booking] init starting. MelodiaCart:', !!window.MelodiaCart);
+
+    // Express (bannière promo) : ?express=<promoId> → ajoute l'offre au panier au prix promo
+    // puis saute directement aux coordonnées (créneau à confirmer avec le studio).
+    const _params = new URLSearchParams(location.search);
+    const _expressId = _params.get('express');
+    if (_expressId && window.MelodiaPromo) {
+      const promo = window.MelodiaPromo.all.find((p) => p.id === _expressId) || window.MelodiaPromo.current();
+      if (promo) {
+        const existing = window.MelodiaCart.getAll();
+        if (!existing.find((i) => i.id === promo.itemId)) {
+          window.MelodiaCart.add({ id: promo.itemId, service: promo.serviceName, option: promo.option, price: promo.newPrice, duration: promo.duration });
+        }
+        state.promoId = promo.id;
+      }
+    }
+
     const cart = window.MelodiaCart?.getAll?.() || [];
     console.log('[booking] cart items:', cart.length, cart);
 
@@ -849,6 +865,7 @@ async function handleSubmit() {
           };
         }),
         details: state.details,
+        promo: state.promoId || null,
         createdAt: new Date().toISOString(),
       }
     : {

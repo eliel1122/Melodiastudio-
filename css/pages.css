@@ -1178,6 +1178,7 @@ a.service-card:hover::after { color: var(--accent); transform: translateX(4px); 
   display: flex;
   flex-direction: column;
   gap: var(--space-7);
+  min-width: 0; /* allow the grid track to shrink; .booking-steps scrolls instead of overflowing */
 }
 .booking-steps {
   display: flex;
@@ -1442,6 +1443,7 @@ a.service-card:hover::after { color: var(--accent); transform: translateX(4px); 
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  min-width: 0;
 }
 .booking-summary h3 {
   font-family: var(--font-display);

@@ -55,14 +55,14 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           fields: {
             'Référence': ref,
-            'Date': it.date,
+            ...(it.date ? { 'Date': it.date } : {}),
             'Heure début': it.slotTime || '',
             'Durée (h)': it.duration || 1,
             'Service': mapService(it.service),
             'Statut': 'En attente',
             'Client': client?.id ? [client.id] : undefined,
             'Acompte payé': false,
-            'Notes': details.project || '',
+            'Notes': [details.project || '', it.express ? '⏳ Créneau à confirmer (offre promo à l’heure)' : ''].filter(Boolean).join(' · '),
           },
           typecast: true,
         }),
@@ -115,14 +115,15 @@ exports.handler = async (event) => {
 function normalizeItems(payload) {
   if (payload.mode === 'cart') {
     return (payload.items || [])
-      .filter(it => it.planDate || it.date)
+      .filter(it => payload.express || it.planDate || it.date)
       .map(it => ({
         service: it.service,
-        date: it.planDate || it.date,
+        date: it.planDate || it.date || null,
         slotTime: it.planSlotTime || it.slotTime || '',
         duration: it.duration || 1,
         qty: it.qty || 1,
         price: it.price,
+        express: !!payload.express && !(it.planDate || it.date),
       }));
   }
   // mode classic
@@ -276,7 +277,7 @@ function formatRecapClient(details, items, created, fid) {
   ];
   items.forEach((it, i) => {
     const refLine = created[i]?.ref ? ` [Réf: ${created[i].ref}]` : '';
-    lines.push(`• ${mapService(it.service)} le ${it.date}${it.slotTime ? ' à ' + it.slotTime : ''} (${it.duration}h)${refLine}`);
+    lines.push(`• ${mapService(it.service)} ${it.date ? 'le ' + it.date : '(créneau à confirmer)'}${it.slotTime ? ' à ' + it.slotTime : ''} (${it.duration}h)${refLine}`);
   });
   if (details.project) {
     lines.push(``);
@@ -318,7 +319,7 @@ function formatSummary(details, items, created, fid) {
   lines.push(``);
   lines.push(`Prestations :`);
   items.forEach((it, i) => {
-    lines.push(`• ${mapService(it.service)} — ${it.date} ${it.slotTime || ''} (${it.duration}h) [${created[i]?.ref || '?'}]`);
+    lines.push(`• ${mapService(it.service)} — ${it.date ? it.date + ' ' + (it.slotTime || '') : 'créneau à confirmer'} (${it.duration}h) [${created[i]?.ref || '?'}]`);
   });
   if (details.project) {
     lines.push(``);

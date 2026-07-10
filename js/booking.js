@@ -181,12 +181,34 @@ function init() {
     const _expressId = _params.get('express');
     if (_expressId && window.MelodiaPromo) {
       const promo = window.MelodiaPromo.all.find((p) => p.id === _expressId) || window.MelodiaPromo.current();
-      if (promo) {
+      // Prix promo uniquement si la promo est réellement active (ou preview forcé)
+      if (promo && (window.MelodiaPromo.isActive(promo) || window.MelodiaPromo.current() === promo)) {
         const existing = window.MelodiaCart.getAll();
         if (!existing.find((i) => i.id === promo.itemId)) {
           window.MelodiaCart.add({ id: promo.itemId, service: promo.serviceName, option: promo.option, price: promo.newPrice, duration: promo.duration });
         }
         state.promoId = promo.id;
+      }
+    }
+
+    // QR affiches : ?qr=<itemKey> → remplit le panier automatiquement et
+    // atterrit direct sur la planification (date + créneau) puis coordonnées.
+    const QR_ITEMS = {
+      'pack-silver':    { id: 'pack-silver',    service: 'Pack Silver',    option: '2h studio + pré-mix + photos',           price: 40000,  duration: 2 },
+      'pack-gold':      { id: 'pack-gold',      service: 'Pack Gold',      option: '2h studio + mix + photos + cover',       price: 180000, duration: 2 },
+      'pack-platinium': { id: 'pack-platinium', service: 'Pack Platinium', option: '2h + mix + master + cover + visualizer', price: 280000, duration: 2 },
+      'rec-hour':       { id: 'rec-hour',       service: 'Enregistrement', option: "À l'heure",                              price: 25000,  duration: 1 },
+    };
+    const _qrKey = _params.get('qr');
+    if (_qrKey && QR_ITEMS[_qrKey] && window.MelodiaCart) {
+      const qrItem = { ...QR_ITEMS[_qrKey] };
+      // Si une promo active couvre cet item (ex: rec-hour), on applique son prix
+      if (window.MelodiaPromo?.priceFor && _qrKey === 'rec-hour') {
+        qrItem.price = window.MelodiaPromo.priceFor('rec', 'hour', qrItem.price);
+      }
+      const existing = window.MelodiaCart.getAll();
+      if (!existing.find((i) => i.id === qrItem.id)) {
+        window.MelodiaCart.add(qrItem);
       }
     }
 

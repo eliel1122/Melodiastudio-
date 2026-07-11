@@ -133,6 +133,7 @@ function normalizeItems(payload) {
     slotTime: payload.slotTime || '',
     duration: payload.duration || 1,
     qty: 1,
+    price: payload.price ?? undefined,
   }];
 }
 

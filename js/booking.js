@@ -56,6 +56,18 @@ function generateSlots(duration) {
 
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
+// Tarif mardi : l'heure de studio à 15 000 F tous les mardis (toute la journée).
+const TUESDAY_HOUR_PRICE = 15000;
+function isTuesday(iso) { return !!iso && new Date(iso + 'T00:00:00').getDay() === 2; }
+// Applique/retire le tarif mardi sur un item "heure de studio" selon sa date planifiée.
+function applyTuesdayPricing(item) {
+  if (!item || item.id !== 'rec-hour') return;
+  if (item.basePrice == null) item.basePrice = item.price;
+  item.price = isTuesday(item.planDate)
+    ? Math.min(TUESDAY_HOUR_PRICE, item.basePrice)
+    : item.basePrice;
+}
+
 const state = {
   mode: 'classic',     // 'classic' or 'cart'
   step: 0,             // step index
@@ -508,6 +520,7 @@ function renderCartPlanningStep(root) {
         if (item) {
           item.planDate = iso;
           item.planSlot = null;
+          applyTuesdayPricing(item);
         }
         renderActiveStep(); renderSummary(); renderSteps();
         fetchAvailability(iso);  // déclenche le check des dispos backend
@@ -804,6 +817,7 @@ function renderSummary() {
 
   if (state.mode === 'cart') {
     const total = state.items.reduce((s, i) => s + i.price * i.qty, 0);
+    const tuesdayApplied = state.items.some((it) => it.id === 'rec-hour' && isTuesday(it.planDate) && it.price === TUESDAY_HOUR_PRICE);
     root.innerHTML = `
       <h3>Récapitulatif</h3>
       <div class="summary-items">
@@ -825,6 +839,7 @@ function renderSummary() {
           `;
         }).join('')}
       </div>
+      ${tuesdayApplied ? '<p class="mono" style="font-size: 11px; color: var(--accent); line-height: 1.5;">★ Tarif mardi appliqué : l\'heure de studio à 15 000 F.</p>' : ''}
       <div class="summary-total">
         <span class="label">Total estimé</span>
         <span class="num">${MelodiaCart.format(total)}</span>
@@ -834,7 +849,8 @@ function renderSummary() {
   } else {
     const service = DATA.services.find((s) => s.id === state.service);
     const dateLabel = state.date ? formatDateLabel(state.date) : null;
-    const total = service ? service.base : 0;
+    const tuesdayClassic = service && service.id === 'rec' && isTuesday(state.date);
+    const total = service ? (tuesdayClassic ? TUESDAY_HOUR_PRICE : service.base) : 0;
 
     root.innerHTML = `
       <h3>Récapitulatif</h3>
@@ -850,6 +866,7 @@ function renderSummary() {
         <span class="label">Créneau</span>
         <span class="value ${state.slotTime ? '' : 'empty'}">${state.slotTime || 'À choisir'}</span>
       </div>
+      ${tuesdayClassic ? '<p class="mono" style="font-size: 11px; color: var(--accent); line-height: 1.5;">★ Tarif mardi appliqué : l\'heure de studio à 15 000 F.</p>' : ''}
       <div class="summary-total">
         <span class="label">Total estimé</span>
         <span class="num">${MelodiaCart.format(total)}</span>
@@ -896,6 +913,9 @@ async function handleSubmit() {
         date: state.date,
         slot: state.slot, slotTime: state.slotTime, slotLabel: state.slotLabel,
         duration: DATA.services.find(s => s.id === state.service)?.duration || 1,
+        price: (state.service === 'rec' && isTuesday(state.date))
+          ? TUESDAY_HOUR_PRICE
+          : (DATA.services.find(s => s.id === state.service)?.base ?? null),
         details: state.details,
         createdAt: new Date().toISOString(),
       };

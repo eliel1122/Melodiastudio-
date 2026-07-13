@@ -13,7 +13,7 @@
 
 const crypto = require('crypto');
 const {
-  airtable, airtableTable, TABLES, mapService,
+  airtable, airtableTable, TABLES, mapService, sendWhatsApp,
 } = require('./_lib');
 
 const META_API = 'https://graph.facebook.com/v21.0';
@@ -106,6 +106,23 @@ async function routeText(from, name, text) {
 }
 
 async function routeAction(from, name, actionId) {
+  if (!actionId) return await sendMainMenu(from, name);
+
+  // ---- Tunnel de réservation (contexte encodé dans l'id, pas de session) ----
+  // S|<svc>              → choix de la date
+  // D|<svc>|<iso>        → choix de la période (ou RDV direct)
+  // P|<svc>|<iso>|<per>  → choix du créneau dans la période
+  // T|<svc>|<iso>|<h>    → récap + confirmation
+  // OK|<svc>|<iso>|<h>   → création de la réservation
+  const [op, ...args] = actionId.split('|');
+  switch (op) {
+    case 'S':  return await sendDates(from, args[0]);
+    case 'D':  return await sendPeriods(from, args[0], args[1]);
+    case 'P':  return await sendSlots(from, args[0], args[1], args[2]);
+    case 'T':  return await sendRecap(from, args[0], args[1], args[2]);
+    case 'OK': return await confirmBooking(from, name, args[0], args[1], args[2]);
+  }
+
   switch (actionId) {
     case 'RESERVER':  return await sendReserverFlow(from, name);
     case 'TARIFS':    return await sendTarifs(from);
@@ -208,24 +225,270 @@ async function sendContact(from) {
   );
 }
 
-async function sendReserverFlow(from, name) {
-  // Phase initiale : on dirige vers le site (le WhatsApp Flow sera ajouté ensuite)
+// =====================================================
+// TUNNEL DE RÉSERVATION — même parcours que le site
+// Catalogue : id → { label court (≤24c), durée h (0 = RDV 30min),
+//                    prix (description ≤72c), service id Airtable }
+// =====================================================
+const CATALOG = {
+  rec:       { title: 'Enregistrement (heure)', dur: 1, desc: '25 000 F / h · 15 000 F le mardi', svc: 'rec' },
+  silver:    { title: 'Pack Silver',            dur: 2, desc: '40 000 F · 2h + pré-mix + photos', svc: 'pack-silver' },
+  gold:      { title: 'Pack Gold',              dur: 2, desc: '180 000 F · 2h + mix + photos + cover', svc: 'pack-gold' },
+  platinium: { title: 'Pack Platinium',         dur: 2, desc: '280 000 F · tout inclus', svc: 'pack-platinium' },
+  jam:       { title: 'Répétitions / jam',      dur: 2, desc: 'Session live · tarif confirmé par le studio', svc: 'Répétitions / jam session' },
+  vo:        { title: 'Voice-over',             dur: 1, desc: '40 000 F / h', svc: 'vo' },
+  mix:       { title: 'Mix',                    dur: 0, desc: '150 000 F / titre · RDV 30min', svc: 'mix' },
+  master:    { title: 'Mastering',              dur: 0, desc: '75 000 F / titre · RDV 30min', svc: 'master' },
+  prod:      { title: 'Production beat',        dur: 0, desc: 'Dès 100 000 F · RDV 30min', svc: 'prod' },
+  da:        { title: 'Direction artistique',   dur: 0, desc: 'Dès 30 000 F · RDV 30min', svc: 'da' },
+};
+const RDV_HOURS = [10, 14, 17]; // RDV 30min pour mix/master/prod/da
+const JOURS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const MOIS = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
+
+async function sendReserverFlow(from) {
+  const row = (id) => ({ id: `S|${id}`, title: CATALOG[id].title, description: CATALOG[id].desc });
   return await callMeta(from, {
     type: 'interactive',
     interactive: {
-      type: 'button',
-      body: {
-        text: `🎙️ *RÉSERVER UNE SESSION*\n\nTu peux soit réserver direct sur le site (créneaux dispos en temps réel), soit nous dire ici quel service / date / heure tu veux et on te confirme sous 24h.`,
-      },
+      type: 'list',
+      header: { type: 'text', text: '🎙️ Réserver une session' },
+      body: { text: 'Choisis ta prestation — je te montre ensuite les créneaux réellement disponibles.' },
+      footer: { text: 'Melodia Studio · Cocody Riviera 4' },
       action: {
-        buttons: [
-          { type: 'reply', reply: { id: 'TARIFS',  title: '📋 Voir les tarifs' } },
-          { type: 'reply', reply: { id: 'MENU',    title: '⬅️ Retour' } },
+        button: 'Voir les services',
+        sections: [
+          { title: '🎙️ Studio', rows: ['rec', 'silver', 'gold', 'platinium', 'jam', 'vo'].map(row) },
+          { title: '🎚️ Prod & post-prod', rows: ['mix', 'master', 'prod', 'da'].map(row) },
         ],
       },
     },
   });
 }
+
+async function sendDates(from, svcId) {
+  const c = CATALOG[svcId];
+  if (!c) return await sendMainMenu(from, 'là');
+  const rows = [];
+  const now = new Date();
+  // Aujourd'hui inclus seulement avant 18h ; sinon on démarre demain
+  const startOffset = now.getUTCHours() < 18 ? 0 : 1;
+  for (let i = startOffset; rows.length < 8; i++) {
+    const d = new Date(now.getTime() + i * 86400000);
+    const iso = d.toISOString().slice(0, 10);
+    const dow = d.getUTCDay();
+    const label = `${JOURS[dow]} ${d.getUTCDate()} ${MOIS[d.getUTCMonth()]}`;
+    const isToday = i === 0;
+    const mardi = dow === 2 && svcId === 'rec';
+    rows.push({
+      id: `D|${svcId}|${iso}`,
+      title: isToday ? 'Aujourd\'hui' : label,
+      description: mardi ? '🔥 Tarif mardi : 15 000 F / h' : (isToday ? label : undefined),
+    });
+  }
+  return await callMeta(from, {
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      header: { type: 'text', text: c.title },
+      body: { text: 'Quel jour t\'arrange ?' },
+      action: { button: 'Choisir le jour', sections: [{ title: 'Prochains jours', rows }] },
+    },
+  });
+}
+
+async function sendPeriods(from, svcId, dateIso) {
+  const c = CATALOG[svcId];
+  if (!c) return await sendMainMenu(from, 'là');
+
+  // Services RDV : 3 créneaux fixes de 30min, direct
+  if (c.dur === 0) {
+    const occupied = await fetchOccupied(dateIso);
+    const rows = RDV_HOURS
+      .filter((h) => !overlaps(h * 60, h * 60 + 30, occupied))
+      .map((h) => ({ id: `T|${svcId}|${dateIso}|${h}`, title: `${pad2(h)}h — ${pad2(h)}h30`, description: 'Rendez-vous · 30min' }));
+    if (!rows.length) return await noSlots(from, svcId, dateIso);
+    return await callMeta(from, {
+      type: 'interactive',
+      interactive: {
+        type: 'list',
+        header: { type: 'text', text: c.title },
+        body: { text: `📅 ${frDate(dateIso)}\nChoisis ton rendez-vous :` },
+        action: { button: 'Voir les RDV', sections: [{ title: 'Rendez-vous 30min', rows }] },
+      },
+    });
+  }
+
+  // Services studio : périodes selon les créneaux réellement libres
+  const free = await freeStarts(svcId, dateIso);
+  if (!free.length) return await noSlots(from, svcId, dateIso);
+  const buttons = [];
+  if (free.some((h) => h < 12)) buttons.push({ type: 'reply', reply: { id: `P|${svcId}|${dateIso}|M`, title: '🌅 Matin' } });
+  if (free.some((h) => h >= 12 && h < 17)) buttons.push({ type: 'reply', reply: { id: `P|${svcId}|${dateIso}|A`, title: '☀️ Après-midi' } });
+  if (free.some((h) => h >= 17)) buttons.push({ type: 'reply', reply: { id: `P|${svcId}|${dateIso}|S`, title: '🌙 Soirée' } });
+  return await callMeta(from, {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: `🎙️ *${c.title}*\n📅 ${frDate(dateIso)}\n\nTu préfères quel moment ? (créneaux vérifiés en temps réel)` },
+      action: { buttons },
+    },
+  });
+}
+
+async function sendSlots(from, svcId, dateIso, period) {
+  const c = CATALOG[svcId];
+  if (!c) return await sendMainMenu(from, 'là');
+  const free = await freeStarts(svcId, dateIso);
+  const inPeriod = free.filter((h) =>
+    period === 'M' ? h < 12 : period === 'A' ? h >= 12 && h < 17 : h >= 17
+  ).slice(0, 10);
+  if (!inPeriod.length) return await noSlots(from, svcId, dateIso);
+  const rows = inPeriod.map((h) => ({
+    id: `T|${svcId}|${dateIso}|${h}`,
+    title: `${pad2(h)}h — ${pad2(h + c.dur)}h`,
+    description: `${c.dur}h de session`,
+  }));
+  return await callMeta(from, {
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      header: { type: 'text', text: c.title },
+      body: { text: `📅 ${frDate(dateIso)}\nChoisis ton créneau :` },
+      action: { button: 'Voir les créneaux', sections: [{ title: 'Créneaux libres', rows }] },
+    },
+  });
+}
+
+async function sendRecap(from, svcId, dateIso, hStr) {
+  const c = CATALOG[svcId];
+  if (!c) return await sendMainMenu(from, 'là');
+  const h = parseInt(hStr, 10);
+  const fin = c.dur === 0 ? `${pad2(h)}h30` : `${pad2(h + c.dur)}h`;
+  const mardi = new Date(dateIso + 'T00:00:00Z').getUTCDay() === 2 && svcId === 'rec';
+  const prix = mardi ? '15 000 F / h (tarif mardi 🔥)' : c.desc.split('·')[0].trim();
+  return await callMeta(from, {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: {
+        text: `📝 *RÉCAP DE TA RÉSA*\n\n🎙️ ${c.title}\n📅 ${frDate(dateIso)}\n⏰ ${pad2(h)}h — ${fin}\n💰 ${prix}\n\nOn valide ?`,
+      },
+      action: {
+        buttons: [
+          { type: 'reply', reply: { id: `OK|${svcId}|${dateIso}|${h}`, title: '✅ Je confirme' } },
+          { type: 'reply', reply: { id: `S|${svcId}`, title: '📅 Autre date' } },
+          { type: 'reply', reply: { id: 'MENU', title: '❌ Annuler' } },
+        ],
+      },
+    },
+  });
+}
+
+async function confirmBooking(from, name, svcId, dateIso, hStr) {
+  const c = CATALOG[svcId];
+  if (!c) return await sendMainMenu(from, name);
+  const h = parseInt(hStr, 10);
+
+  // Re-check anti-collision juste avant d'écrire
+  if (c.dur > 0) {
+    const free = await freeStarts(svcId, dateIso);
+    if (!free.includes(h)) {
+      await sendText(from, '😕 Oups — ce créneau vient d\'être pris. Regarde les créneaux restants :');
+      return await sendPeriods(from, svcId, dateIso);
+    }
+  }
+
+  // Client : recherche par téléphone, sinon création avec le nom WhatsApp
+  let clientId = null;
+  try {
+    const found = await airtable(
+      `${airtableTable(TABLES.CLIENTS)}?filterByFormula=${encodeURIComponent(`{Téléphone} = '+${from}'`)}&maxRecords=1`,
+      { method: 'GET' }
+    );
+    if (found.records?.length) clientId = found.records[0].id;
+    else {
+      const created = await airtable(`${airtableTable(TABLES.CLIENTS)}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          fields: { 'Nom complet': name, 'Téléphone': `+${from}`, 'Tier': 'Bronze', 'Points actifs': 1, 'Séances totales': 1 },
+          typecast: true,
+        }),
+      });
+      clientId = created.id;
+    }
+  } catch (e) { console.error('[wa-booking] client error:', e.message); }
+
+  const ref = `MEL-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  try {
+    await airtable(`${airtableTable(TABLES.RESERVATIONS)}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        fields: {
+          'Référence': ref,
+          'Date': dateIso,
+          'Heure début': `${pad2(h)}:00`,
+          'Durée (h)': c.dur || 1,
+          'Service': mapService(c.svc),
+          'Statut': 'En attente',
+          ...(clientId ? { 'Client': [clientId] } : {}),
+          'Notes': `Réservé via WhatsApp bot · ${name} · +${from}`,
+        },
+        typecast: true,
+      }),
+    });
+  } catch (e) {
+    console.error('[wa-booking] reservation error:', e.message);
+    return await sendText(from, '😕 Petit souci technique de notre côté. Écris-nous directement, on te cale ça : +225 07 03 38 77 38');
+  }
+
+  await sendWhatsApp(
+    `🎙️ RÉSA WHATSAPP BOT\n${name} (+${from})\n${c.title} — ${frDate(dateIso)} à ${pad2(h)}h (${c.dur || '0.5'}h)\n[${ref}]`
+  ).catch(() => {});
+
+  return await sendText(from,
+    `✅ *C'est noté ${name} !*\n\n` +
+    `🎙️ ${c.title}\n📅 ${frDate(dateIso)} à ${pad2(h)}h\n🔖 Réf : *${ref}*\n\n` +
+    `On te confirme sous 24h. Ton créneau est bloqué en attendant 👌\n\n` +
+    `🎁 Pense à ta carte fidélité (1 séance offerte toutes les 5 résas) :\nhttps://melodiastudio.pro/pages/fidelite.html`
+  );
+}
+
+// ---------- Helpers réservation ----------
+async function fetchOccupied(dateIso) {
+  try {
+    const res = await fetch(`https://melodiastudio.pro/api/get-availability?date=${dateIso}`);
+    const data = await res.json();
+    return data.occupied || [];
+  } catch { return []; }
+}
+
+async function freeStarts(svcId, dateIso) {
+  const c = CATALOG[svcId];
+  const occupied = await fetchOccupied(dateIso);
+  const OPEN = 9, CLOSE = 21;
+  const out = [];
+  for (let start = OPEN; start + c.dur <= CLOSE; start++) {
+    if (!overlaps(start * 60, (start + c.dur) * 60, occupied)) out.push(start);
+  }
+  return out;
+}
+
+function overlaps(startMin, endMin, occupied) {
+  return (occupied || []).some((o) => startMin < o.end && endMin > o.start);
+}
+
+async function noSlots(from, svcId, dateIso) {
+  await sendText(from, `😕 Plus aucun créneau libre le ${frDate(dateIso)}. Essaie un autre jour :`);
+  return await sendDates(from, svcId);
+}
+
+function frDate(iso) {
+  const d = new Date(iso + 'T00:00:00Z');
+  return `${JOURS[d.getUTCDay()]} ${d.getUTCDate()} ${MOIS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+function pad2(n) { return String(n).padStart(2, '0'); }
 
 // =====================================================
 // Wrappers API Meta

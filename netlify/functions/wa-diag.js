@@ -21,12 +21,33 @@ exports.handler = async (event) => {
     } catch (e) { return { error: e.message }; }
   };
 
+  // &send=<phone_number_id>&to=<numéro> → envoie le template hello_world
+  const sendFrom = event.queryStringParameters?.send;
+  const sendTo = event.queryStringParameters?.to;
+  let sendResult = null;
+  if (sendFrom && sendTo) {
+    try {
+      const res = await fetch(`https://graph.facebook.com/v21.0/${sendFrom}/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: sendTo,
+          type: 'template',
+          template: { name: 'hello_world', language: { code: 'en_US' } },
+        }),
+      });
+      sendResult = { status: res.status, body: await res.json() };
+    } catch (e) { sendResult = { error: e.message }; }
+  }
+
   const out = {
     env: { hasToken: !!token, tokenPrefix: token ? token.slice(0, 12) : null, phoneId },
     me: await call('me'),
     phone: await call(`${phoneId}?fields=display_phone_number,verified_name,platform_type,status`),
     wabaPhones: await call(`${wabaId}/phone_numbers?fields=id,display_phone_number,status,platform_type`),
     debugToken: await call(`debug_token?input_token=${encodeURIComponent(token || '')}`),
+    sendResult,
   };
   return {
     statusCode: 200,

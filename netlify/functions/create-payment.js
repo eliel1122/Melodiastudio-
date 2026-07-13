@@ -42,6 +42,16 @@ exports.handler = async (event) => {
   }
 
   try {
+    // 0. Email : facultatif. Si invalide/absent, on génère un email technique
+    //    valide (Paystack l'exige) à partir du téléphone.
+    const email = validEmail(details.email)
+      ? details.email.trim()
+      : `${(details.phone || 'client').replace(/\D/g, '') || 'client'}@wa.melodiastudio.pro`;
+
+    // 0bis. Retente propre : on libère les anciens holds non payés du même client
+    //       (téléphone) pour qu'il puisse re-choisir le même créneau.
+    await releasePendingHolds(details.phone).catch(() => {});
+
     // 1. Prix total (somme des services) + acompte (fixe, une fois pour la commande)
     const total = items.reduce((sum, it) => sum + computeTotal(it.service, it.date, it.price), 0);
     const deposit = depositFor(items[0].service);
@@ -99,7 +109,7 @@ exports.handler = async (event) => {
       phone: details.phone || '',
     };
     const pay = await paystackInit({
-      email: details.email,
+      email,
       amountXof: amountToPay,
       reference: payRef,
       metadata,
@@ -120,6 +130,29 @@ exports.handler = async (event) => {
 };
 
 // ---------- Helpers ----------
+function validEmail(e) {
+  return typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+}
+
+// Annule les réservations "En attente paiement" non abouties du même téléphone,
+// pour libérer les créneaux quand le client retente.
+async function releasePendingHolds(phone) {
+  const p = (phone || '').trim();
+  if (!p) return;
+  const safe = p.replace(/'/g, "\\'");
+  const filter = `AND({Statut} = 'En attente paiement', OR(FIND('${safe}', {Notes}), FIND('${safe}', {Téléphone client})))`;
+  const found = await airtable(
+    `${airtableTable(TABLES.RESERVATIONS)}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=10`,
+    { method: 'GET' }
+  ).catch(() => ({ records: [] }));
+  for (const r of (found.records || [])) {
+    await airtable(`${airtableTable(TABLES.RESERVATIONS)}/${r.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ fields: { 'Statut': 'Annulée' }, typecast: true }),
+    }).catch(() => {});
+  }
+}
+
 function computeTotal(service, dateIso, priceFromClient) {
   if (service === 'rec' && isTuesday(dateIso)) return TUESDAY_HOUR_PRICE;
   if (typeof priceFromClient === 'number' && priceFromClient > 0) return priceFromClient;

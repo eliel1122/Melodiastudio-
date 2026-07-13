@@ -81,8 +81,10 @@ exports.handler = async (event) => {
       `Réf ${meta.ref || data.reference}`;
     await sendWhatsApp(summary).catch(() => {});
 
-    // Confirmation au client sur WhatsApp si la résa vient du bot
-    if (meta.channel === 'whatsapp' && meta.phone) {
+    // Confirmation automatique au client sur WhatsApp (site ET bot),
+    // dès qu'on a un numéro exploitable.
+    const wa = normalizePhone(meta.phone);
+    if (wa) {
       const msg =
         `✅ *C'est confirmé !*\n\n` +
         `🎙️ ${meta.service}\n📅 ${meta.date} · ${meta.slotLabel || ''}\n` +
@@ -90,7 +92,7 @@ exports.handler = async (event) => {
         (solde ? `💰 Solde à régler au studio : *${solde} F*\n` : '') +
         `🔖 Réf : *${meta.ref || data.reference}*\n\n` +
         `Ton créneau est bloqué 👌 À très vite chez Melodia !`;
-      await sendYCloudText(meta.phone, msg).catch(() => {});
+      await sendYCloudText(wa, msg).catch(() => {});
     }
 
     return { statusCode: 200, body: 'OK' };
@@ -99,6 +101,17 @@ exports.handler = async (event) => {
     return { statusCode: 200, body: 'error-logged' };
   }
 };
+
+// Normalise un numéro ivoirien en format international sans "+".
+// "+225 07 18 41 51 31" / "0718415131" / "2250718415131" → "2250718415131".
+function normalizePhone(raw) {
+  const d = (raw || '').replace(/\D/g, '');
+  if (!d) return null;
+  if (d.startsWith('225')) return d;               // déjà international
+  if (d.length === 10 && d.startsWith('0')) return '225' + d; // local CI 10 chiffres
+  if (d.length >= 8) return '225' + d;             // fallback
+  return null;
+}
 
 // Envoi texte via YCloud (même transport que le bot)
 async function sendYCloudText(to, body) {

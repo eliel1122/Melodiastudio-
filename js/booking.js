@@ -344,13 +344,13 @@ function goTo(s) {
 function isStepValid(step) {
   if (state.mode === 'cart') {
     if (step === 0) return state.items.every((it) => it.planDate && it.planSlot);
-    if (step === 1) return state.details.name && state.details.email && state.details.phone;
+    if (step === 1) return state.details.name && state.details.phone;
   } else {
     switch (step) {
       case 0: return !!state.service;
       case 1: return !!state.date;
       case 2: return !!state.slot;
-      case 3: return state.details.name && state.details.email && state.details.phone;
+      case 3: return state.details.name && state.details.phone;
     }
   }
   return false;
@@ -603,7 +603,7 @@ function renderDetailsStep(root) {
   root.innerHTML = `
     <div class="booking-step is-visible">
       <h2>Tes coordonnées</h2>
-      <p class="booking-step__hint">On t'envoie la confirmation par email + WhatsApp.</p>
+      <p class="booking-step__hint">Ta confirmation arrive directement sur WhatsApp.</p>
 
       <div class="field-row">
         <div class="field">
@@ -611,14 +611,14 @@ function renderDetailsStep(root) {
           <input id="field-name" type="text" required placeholder="Ton nom" value="${state.details.name}" />
         </div>
         <div class="field">
-          <label for="field-phone">WhatsApp</label>
+          <label for="field-phone">WhatsApp <span style="color:var(--fg-low);font-weight:400;font-size:11px;">(pour ta confirmation)</span></label>
           <input id="field-phone" type="tel" required placeholder="+225 ..." value="${state.details.phone}" />
         </div>
       </div>
 
       <div class="field">
-        <label for="field-email">Email</label>
-        <input id="field-email" type="email" required placeholder="ton@email.com" value="${state.details.email}" />
+        <label for="field-email">Email <span style="color:var(--fg-low);font-weight:400;font-size:11px;">(facultatif)</span></label>
+        <input id="field-email" type="email" placeholder="ton@email.com" value="${state.details.email}" />
       </div>
 
       <div class="field">

@@ -62,7 +62,7 @@
           <a href="${BASE}index.html" class="nav__logo">
             <img src="${BASE}assets/images/melodia-logo.png" alt="Melodia Studio" />
           </a>
-          <p class="footer__tag">Le cocon créatif des artistes qui montent.</p>
+          <p class="footer__tag">L'espace créatif des artistes qui montent.</p>
         </div>
         <div class="footer__cols">
           <div class="footer__col">

@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="../css/design-system.css" />
   <link rel="stylesheet" href="../css/home.css" />
   <link rel="stylesheet" href="../css/pages.css" />
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
@@ -21,7 +23,7 @@
 
   <main>
     <section class="block" style="min-height:70vh;display:flex;align-items:center;justify-content:center;">
-      <div id="pay-result" style="text-align:center;padding:2rem 1.5rem;display:flex;flex-direction:column;gap:1.4rem;align-items:center;max-width:520px;">
+      <div id="pay-result" style="text-align:center;padding:2rem 1.5rem;display:flex;flex-direction:column;gap:1.4rem;align-items:center;max-width:560px;width:100%;">
         <div class="mlc-spinner" style="width:48px;height:48px;border:3px solid rgba(30,144,255,0.25);border-top-color:#1E90FF;border-radius:50%;animation:mlcspin 0.8s linear infinite;"></div>
         <p style="color:var(--fg-dim);">Vérification de ton paiement...</p>
         <style>@keyframes mlcspin{to{transform:rotate(360deg)}}</style>
@@ -33,17 +35,46 @@
   <script src="../js/layout.js" defer></script>
   <script>
     const fmtF = (n) => (Number(n) || 0).toLocaleString('fr-FR').replace(/,/g, ' ') + ' F';
-    function param(k) { return new URLSearchParams(location.search).get(k); }
+    const param = (k) => new URLSearchParams(location.search).get(k);
 
-    const ok = (title, lines) => `
+    function receiptHTML(d, ref) {
+      const paidTxt = d.choice === 'acompte' && d.solde
+        ? `Acompte payé : <b>${fmtF(d.amount)}</b>`
+        : `Payé en totalité : <b>${fmtF(d.amount)}</b>`;
+      const soldeTxt = d.choice === 'acompte' && d.solde
+        ? `<div class="rc-row"><span>Solde au studio</span><b>${fmtF(d.solde)}</b></div>` : '';
+      return `
+        <div id="receipt" style="background:#0d0d14;border:1px solid rgba(30,144,255,0.35);border-radius:18px;padding:26px 24px;max-width:400px;width:100%;text-align:left;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+            <div style="font-family:'Anton',sans-serif;font-size:22px;letter-spacing:.5px;color:#F5F5F7;">MELODIA<span style="color:#1E90FF">.</span></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.2em;color:#1E90FF;text-transform:uppercase;border:1px solid rgba(30,144,255,.4);border-radius:20px;padding:4px 10px;">Reçu</span>
+          </div>
+          <div style="display:flex;gap:18px;align-items:center;">
+            <div id="qr" style="background:#fff;padding:8px;border-radius:10px;line-height:0;"></div>
+            <div style="flex:1;font-size:13px;color:#A8A8B5;line-height:1.7;">
+              <div style="color:#F5F5F7;font-weight:600;font-size:15px;margin-bottom:4px;">${d.service || 'Session studio'}</div>
+              ${d.date || ''} ${d.slotLabel ? '· ' + d.slotLabel : ''}
+            </div>
+          </div>
+          <div style="margin-top:18px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px;font-size:13px;color:#A8A8B5;display:flex;flex-direction:column;gap:8px;">
+            <div class="rc-row" style="display:flex;justify-content:space-between;">${paidTxt}</div>
+            ${soldeTxt}
+            <div class="rc-row" style="display:flex;justify-content:space-between;"><span>Référence</span><b style="font-family:'JetBrains Mono',monospace;letter-spacing:.05em;color:#F5F5F7;">${ref}</b></div>
+          </div>
+          <p style="margin:16px 0 0;font-size:10.5px;color:#5a5a68;text-align:center;font-family:'JetBrains Mono',monospace;letter-spacing:.1em;">MELODIASTUDIO.PRO · COCODY RIVIERA 4 M'POUTO</p>
+        </div>`;
+    }
+
+    const ok = (d, ref) => `
       <div style="width:72px;height:72px;border-radius:50%;background:rgba(30,144,255,0.15);display:flex;align-items:center;justify-content:center;border:1px solid rgba(30,144,255,0.4);">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-11" stroke="#1E90FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <h1 class="display" style="margin:0;">${title}</h1>
-      <p style="color:var(--fg-dim);line-height:1.6;">${lines}</p>
+      <h1 class="display" style="margin:0;">Créneau bloqué ! 🎙️</h1>
+      <p style="color:var(--fg-dim);line-height:1.6;">Ta confirmation arrive à l'instant sur WhatsApp. Voici ton reçu :</p>
+      ${receiptHTML(d, ref)}
       <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
-        <a href="../index.html" class="btn btn--primary btn--lg">Retour à l'accueil</a>
-        <a href="fidelite.html" class="btn btn--ghost btn--lg">Ma fidélité</a>
+        <button id="dl-receipt" class="btn btn--primary btn--lg">⬇ Télécharger le reçu</button>
+        <a href="../index.html" class="btn btn--ghost btn--lg">Accueil</a>
       </div>`;
 
     const ko = (title, lines) => `
@@ -65,14 +96,30 @@
         const res = await fetch('/api/verify-payment?reference=' + encodeURIComponent(ref));
         const d = await res.json();
         if (d.ok && d.status === 'success') {
-          const soldeTxt = d.choice === 'acompte' && d.solde
-            ? `Ton acompte de <b style="color:var(--fg)">${fmtF(d.amount)}</b> est bien reçu.<br>Solde de <b style="color:var(--fg)">${fmtF(d.solde)}</b> à régler au studio.`
-            : `Ta session est <b style="color:var(--fg)">payée en totalité</b> (${fmtF(d.amount)}).`;
-          el.innerHTML = ok('Créneau bloqué ! 🎙️',
-            `${soldeTxt}<br><br>${d.service || ''} · ${d.date || ''} ${d.slotLabel || ''}<br>` +
-            `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--fg-low)">Réf ${ref}</span>`);
+          el.innerHTML = ok(d, ref);
+          // QR : encode l'URL de vérification de la réservation
+          try {
+            new QRCode(document.getElementById('qr'), {
+              text: 'https://melodiastudio.pro/pages/verifier.html?ref=' + encodeURIComponent(ref),
+              width: 96, height: 96, correctLevel: QRCode.CorrectLevel.M,
+            });
+          } catch (_) {}
+          document.getElementById('dl-receipt')?.addEventListener('click', async () => {
+            const node = document.getElementById('receipt');
+            if (!node || !window.html2canvas) return;
+            const canvas = await html2canvas(node, { backgroundColor: '#08080C', scale: 2 });
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/png');
+            a.download = `recu-melodia-${ref}.png`;
+            a.click();
+          });
         } else {
-          el.innerHTML = ko('Paiement non abouti', 'Le paiement n\'a pas été confirmé. Ton créneau n\'est pas encore bloqué — tu peux réessayer.');
+          el.innerHTML = ko('Paiement non abouti', 'Le paiement n\'a pas été confirmé, ton créneau vient d\'être libéré. Tu peux réessayer avec le même créneau.');
+          // Libère le hold côté serveur
+          fetch('/api/release-hold', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference: ref }),
+          }).catch(() => {});
         }
       } catch (e) {
         el.innerHTML = ko('Vérification impossible', 'On n\'a pas pu vérifier le paiement. Si tu as été débité, écris-nous sur WhatsApp avec ta référence : ' + ref);

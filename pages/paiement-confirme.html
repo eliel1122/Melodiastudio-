@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Paiement · Melodia Studio · Abidjan</title>
+  <meta name="theme-color" content="#08080C" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/reset.css" />
+  <link rel="stylesheet" href="../css/design-system.css" />
+  <link rel="stylesheet" href="../css/home.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="glow glow--blue" aria-hidden="true"></div>
+
+  <div id="nav-mount"></div>
+
+  <main>
+    <section class="block" style="min-height:70vh;display:flex;align-items:center;justify-content:center;">
+      <div id="pay-result" style="text-align:center;padding:2rem 1.5rem;display:flex;flex-direction:column;gap:1.4rem;align-items:center;max-width:520px;">
+        <div class="mlc-spinner" style="width:48px;height:48px;border:3px solid rgba(30,144,255,0.25);border-top-color:#1E90FF;border-radius:50%;animation:mlcspin 0.8s linear infinite;"></div>
+        <p style="color:var(--fg-dim);">Vérification de ton paiement...</p>
+        <style>@keyframes mlcspin{to{transform:rotate(360deg)}}</style>
+      </div>
+    </section>
+  </main>
+
+  <div id="footer-mount"></div>
+  <script src="../js/layout.js" defer></script>
+  <script>
+    const fmtF = (n) => (Number(n) || 0).toLocaleString('fr-FR').replace(/,/g, ' ') + ' F';
+    function param(k) { return new URLSearchParams(location.search).get(k); }
+
+    const ok = (title, lines) => `
+      <div style="width:72px;height:72px;border-radius:50%;background:rgba(30,144,255,0.15);display:flex;align-items:center;justify-content:center;border:1px solid rgba(30,144,255,0.4);">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-11" stroke="#1E90FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h1 class="display" style="margin:0;">${title}</h1>
+      <p style="color:var(--fg-dim);line-height:1.6;">${lines}</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
+        <a href="../index.html" class="btn btn--primary btn--lg">Retour à l'accueil</a>
+        <a href="fidelite.html" class="btn btn--ghost btn--lg">Ma fidélité</a>
+      </div>`;
+
+    const ko = (title, lines) => `
+      <div style="width:72px;height:72px;border-radius:50%;background:rgba(255,77,94,0.15);display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,77,94,0.4);">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 17.01v-.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#FF4D5E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h1 class="display" style="margin:0;">${title}</h1>
+      <p style="color:var(--fg-dim);line-height:1.6;">${lines}</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
+        <a href="booking.html" class="btn btn--primary btn--lg">Réessayer</a>
+        <a href="https://wa.me/2250703387738?text=Salut%20Melodia%2C%20j%27ai%20eu%20un%20souci%20de%20paiement." class="btn btn--ghost btn--lg" target="_blank">Nous écrire</a>
+      </div>`;
+
+    (async () => {
+      const el = document.getElementById('pay-result');
+      const ref = param('reference') || param('trxref');
+      if (!ref) { el.innerHTML = ko('Paiement introuvable', 'Aucune référence de paiement. Réessaie ta réservation.'); return; }
+      try {
+        const res = await fetch('/api/verify-payment?reference=' + encodeURIComponent(ref));
+        const d = await res.json();
+        if (d.ok && d.status === 'success') {
+          const soldeTxt = d.choice === 'acompte' && d.solde
+            ? `Ton acompte de <b style="color:var(--fg)">${fmtF(d.amount)}</b> est bien reçu.<br>Solde de <b style="color:var(--fg)">${fmtF(d.solde)}</b> à régler au studio.`
+            : `Ta session est <b style="color:var(--fg)">payée en totalité</b> (${fmtF(d.amount)}).`;
+          el.innerHTML = ok('Créneau bloqué ! 🎙️',
+            `${soldeTxt}<br><br>${d.service || ''} · ${d.date || ''} ${d.slotLabel || ''}<br>` +
+            `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--fg-low)">Réf ${ref}</span>`);
+        } else {
+          el.innerHTML = ko('Paiement non abouti', 'Le paiement n\'a pas été confirmé. Ton créneau n\'est pas encore bloqué — tu peux réessayer.');
+        }
+      } catch (e) {
+        el.innerHTML = ko('Vérification impossible', 'On n\'a pas pu vérifier le paiement. Si tu as été débité, écris-nous sur WhatsApp avec ta référence : ' + ref);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -14,9 +14,11 @@
 const crypto = require('crypto');
 const {
   airtable, airtableTable, TABLES, mapService, sendWhatsApp,
+  PRICES, TUESDAY_HOUR_PRICE, depositFor,
 } = require('./_lib');
 
 const META_API = 'https://graph.facebook.com/v21.0';
+const SITE = 'https://melodiastudio.pro';
 
 exports.handler = async (event) => {
   // ---------- GET : Verification handshake Meta ----------
@@ -151,6 +153,9 @@ async function routeAction(from, name, actionId) {
     case 'P':  return await sendSlots(from, args[0], args[1], args[2]);
     case 'T':  return await sendRecap(from, args[0], args[1], args[2]);
     case 'OK': return await confirmBooking(from, name, args[0], args[1], args[2]);
+    // Paiement : PAYA = acompte, PAYT = total
+    case 'PAYA': return await startPayment(from, name, args[0], args[1], args[2], 'acompte');
+    case 'PAYT': return await startPayment(from, name, args[0], args[1], args[2], 'total');
   }
 
   switch (actionId) {
@@ -390,29 +395,98 @@ async function sendSlots(from, svcId, dateIso, period) {
   });
 }
 
+// Prix total d'un service du catalogue (F CFA), avec tarif mardi pour rec.
+function totalForCatalog(svcId, dateIso) {
+  const c = CATALOG[svcId];
+  if (!c) return 0;
+  if (c.svc === 'rec' && new Date(dateIso + 'T00:00:00Z').getUTCDay() === 2) return TUESDAY_HOUR_PRICE;
+  return PRICES[c.svc] || 0;
+}
+
 async function sendRecap(from, svcId, dateIso, hStr) {
   const c = CATALOG[svcId];
   if (!c) return await sendMainMenu(from, 'là');
   const h = parseInt(hStr, 10);
   const fin = c.dur === 0 ? `${pad2(h)}h30` : `${pad2(h + c.dur)}h`;
-  const mardi = new Date(dateIso + 'T00:00:00Z').getUTCDay() === 2 && svcId === 'rec';
-  const prix = mardi ? '15 000 F / h (tarif mardi 🔥)' : c.desc.split('·')[0].trim();
+  const total = totalForCatalog(svcId, dateIso);
+  const dep = Math.min(depositFor(c.svc), total || depositFor(c.svc));
+  const solde = Math.max(0, total - dep);
+  const prixTxt = total ? `${total.toLocaleString('fr-FR').replace(/,/g, ' ')} F` : 'sur devis';
+
+  // Prix connu → paiement en ligne (acompte / total). Sinon confirmation simple.
+  const buttons = total > 0
+    ? [
+        { type: 'reply', reply: { id: `PAYA|${svcId}|${dateIso}|${h}`, title: `💳 Acompte ${dep} F` } },
+        { type: 'reply', reply: { id: `PAYT|${svcId}|${dateIso}|${h}`, title: `💳 Payer ${total} F` } },
+        { type: 'reply', reply: { id: 'MENU', title: '❌ Annuler' } },
+      ]
+    : [
+        { type: 'reply', reply: { id: `OK|${svcId}|${dateIso}|${h}`, title: '✅ Je confirme' } },
+        { type: 'reply', reply: { id: `S|${svcId}`, title: '📅 Autre date' } },
+        { type: 'reply', reply: { id: 'MENU', title: '❌ Annuler' } },
+      ];
+
+  const bodyTxt =
+    `📝 *RÉCAP DE TA RÉSA*\n\n🎙️ ${c.title}\n📅 ${frDate(dateIso)}\n⏰ ${pad2(h)}h — ${fin}\n💰 ${prixTxt}\n\n` +
+    (total > 0
+      ? `Bloque ton créneau :\n• *Acompte ${dep} F* (solde ${solde} F au studio)\n• ou *paie tout* maintenant`
+      : `On valide ?`);
+
   return await callMeta(from, {
     type: 'interactive',
-    interactive: {
-      type: 'button',
-      body: {
-        text: `📝 *RÉCAP DE TA RÉSA*\n\n🎙️ ${c.title}\n📅 ${frDate(dateIso)}\n⏰ ${pad2(h)}h — ${fin}\n💰 ${prix}\n\nOn valide ?`,
-      },
-      action: {
-        buttons: [
-          { type: 'reply', reply: { id: `OK|${svcId}|${dateIso}|${h}`, title: '✅ Je confirme' } },
-          { type: 'reply', reply: { id: `S|${svcId}`, title: '📅 Autre date' } },
-          { type: 'reply', reply: { id: 'MENU', title: '❌ Annuler' } },
-        ],
-      },
-    },
+    interactive: { type: 'button', body: { text: bodyTxt }, action: { buttons } },
   });
+}
+
+// Lance le paiement Paystack et envoie le lien au client.
+async function startPayment(from, name, svcId, dateIso, hStr, choice) {
+  const c = CATALOG[svcId];
+  if (!c) return await sendMainMenu(from, name);
+  const h = parseInt(hStr, 10);
+  const total = totalForCatalog(svcId, dateIso);
+  if (total <= 0) return await confirmBooking(from, name, svcId, dateIso, hStr);
+
+  // Anti-collision juste avant de bloquer
+  if (c.dur > 0) {
+    const free = await freeStarts(svcId, dateIso);
+    if (!free.includes(h)) {
+      await sendText(from, '😕 Ce créneau vient d\'être pris. Voici les créneaux restants :');
+      return await sendPeriods(from, svcId, dateIso);
+    }
+  }
+
+  try {
+    const res = await fetch(`${SITE}/api/create-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel: 'whatsapp',
+        service: c.svc,
+        date: dateIso,
+        slotTime: `${pad2(h)}:00`,
+        slotLabel: `${pad2(h)}h — ${c.dur === 0 ? pad2(h) + 'h30' : pad2(h + c.dur) + 'h'}`,
+        duration: c.dur || 1,
+        choice,
+        price: total,
+        details: { name, phone: `+${from}` },
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok || !data.authorization_url) throw new Error(data.error || 'init paiement');
+
+    const montant = choice === 'total' ? data.total : data.deposit;
+    return await sendText(from,
+      `💳 *Paiement pour bloquer ta session*\n\n` +
+      `${c.title} · ${frDate(dateIso)} à ${pad2(h)}h\n` +
+      `Montant : *${montant.toLocaleString('fr-FR').replace(/,/g, ' ')} F*` +
+      (choice === 'acompte' && data.solde ? ` (solde ${data.solde} F au studio)` : '') +
+      `\n\n👉 Paie ici (carte, Orange Money, Wave, MTN) :\n${data.authorization_url}\n\n` +
+      `Dès que c'est payé, tu reçois ta confirmation ici. Le créneau est gardé 20 min ⏳`
+    );
+  } catch (e) {
+    console.error('[wa-payment] error:', e.message);
+    return await sendText(from, '😕 Souci technique pour le paiement. Écris-nous : +225 07 03 38 77 38');
+  }
 }
 
 async function confirmBooking(from, name, svcId, dateIso, hStr) {

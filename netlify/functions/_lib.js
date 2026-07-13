@@ -123,6 +123,69 @@ async function sendWhatsApp(message) {
   return { ok: results.every(r => r.ok), recipients: results };
 }
 
+// ---------- Paiement (Paystack) ----------
+// Acompte fixe (déduit du prix de la session). Modifiable ici, ou par service
+// via DEPOSIT_BY_SERVICE ci-dessous. Override possible par env DEPOSIT_XOF.
+const DEPOSIT_XOF = parseInt(process.env.DEPOSIT_XOF || '2500', 10);
+const DEPOSIT_BY_SERVICE = {
+  // 'pack-platinium': 10000,   // exemple : acompte spécifique par service
+};
+
+// Prix de référence par service (F CFA). Source de vérité côté serveur,
+// alignée sur js/booking.js (DATA.services) + tarifs.
+const PRICES = {
+  'rec': 25000, 'mix': 150000, 'master': 75000, 'prod': 100000, 'vo': 40000,
+  'pack': 180000, 'pack-silver': 40000, 'pack-gold': 180000, 'pack-platinium': 280000,
+  'da': 30000, 'clip': 30000, 'loc-studio': 35000, 'loc-sono': 0,
+  'jam': 0, 'rec-hour': 25000,
+};
+const TUESDAY_HOUR_PRICE = 15000;
+
+function depositFor(serviceId) {
+  return DEPOSIT_BY_SERVICE[serviceId] || DEPOSIT_XOF;
+}
+
+// Paystack attend le montant dans la sous-unité. Pour XOF on vérifie en test
+// que 2500 F s'affiche bien "2 500" (sinon basculer PAYSTACK_SUBUNIT à 1).
+const PAYSTACK_SUBUNIT = parseInt(process.env.PAYSTACK_SUBUNIT || '100', 10);
+const PAYSTACK_SUBACCOUNT = process.env.PAYSTACK_SUBACCOUNT || null; // ACCT_xxx (optionnel)
+
+// Initialise une transaction Paystack. Renvoie { authorization_url, reference, access_code }.
+async function paystackInit({ email, amountXof, reference, metadata, callbackUrl }) {
+  const key = process.env.PAYSTACK_SECRET_KEY;
+  if (!key) throw new Error('Missing PAYSTACK_SECRET_KEY');
+  const body = {
+    email: email || 'client@melodiastudio.pro',
+    amount: Math.round(amountXof * PAYSTACK_SUBUNIT),
+    currency: 'XOF',
+    reference,
+    metadata,
+    ...(callbackUrl ? { callback_url: callbackUrl } : {}),
+    ...(PAYSTACK_SUBACCOUNT ? { subaccount: PAYSTACK_SUBACCOUNT } : {}),
+  };
+  const res = await fetch('https://api.paystack.co/transaction/initialize', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.status) {
+    throw new Error(data.message || `Paystack init HTTP ${res.status}`);
+  }
+  return data.data; // { authorization_url, access_code, reference }
+}
+
+// Vérifie la signature d'un webhook Paystack (HMAC SHA512 avec la clé secrète).
+function paystackValidSignature(rawBody, signature) {
+  const key = process.env.PAYSTACK_SECRET_KEY;
+  if (!key || !signature) return false;
+  const crypto = require('crypto');
+  const expected = crypto.createHmac('sha512', key).update(rawBody).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  } catch { return false; }
+}
+
 // ---------- Date helpers ----------
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -141,4 +204,9 @@ module.exports = {
   corsHeaders,
   sendWhatsApp,
   todayISO,
+  PRICES,
+  TUESDAY_HOUR_PRICE,
+  depositFor,
+  paystackInit,
+  paystackValidSignature,
 };

@@ -16,9 +16,16 @@ exports.handler = async (event) => {
   }
 
   try {
-    // 1. Réservations actives ce jour (statut En attente OU Confirmée)
-    // On formate explicitement {Date} en YYYY-MM-DD pour comparer string à string (plus robuste qu'IS_SAME)
-    const reservationsFilter = `AND(DATETIME_FORMAT({Date}, 'YYYY-MM-DD') = '${date}', OR({Statut} = 'En attente', {Statut} = 'Confirmée'))`;
+    // 1. Réservations actives ce jour. Comptent comme occupées :
+    //    - En attente / Confirmée / Soldée (fermes)
+    //    - En attente paiement UNIQUEMENT si créée il y a < 20 min (hold Paystack) ;
+    //      passé ce délai, un paiement non abouti libère le créneau.
+    const holdMinutes = 20;
+    const reservationsFilter =
+      `AND(DATETIME_FORMAT({Date}, 'YYYY-MM-DD') = '${date}', OR(` +
+        `{Statut} = 'En attente', {Statut} = 'Confirmée', {Statut} = 'Soldée', ` +
+        `AND({Statut} = 'En attente paiement', DATETIME_DIFF(NOW(), {Créée le}, 'minutes') < ${holdMinutes})` +
+      `))`;
     const reservations = await airtable(
       `${airtableTable(TABLES.RESERVATIONS)}?filterByFormula=${encodeURIComponent(reservationsFilter)}`,
       { method: 'GET' }

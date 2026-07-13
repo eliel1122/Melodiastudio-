@@ -1,0 +1,113 @@
+// =====================================================
+// POST /api/paystack-webhook
+// Reçoit les événements Paystack. Sur `charge.success` :
+//   - confirme la réservation (Confirmée si acompte, Soldée si total)
+//   - marque l'acompte payé + calcule le solde
+//   - notifie le Boss + confirme au client (WhatsApp si canal bot)
+// =====================================================
+
+const {
+  airtable, airtableTable, TABLES,
+  paystackValidSignature, sendWhatsApp,
+} = require('./_lib');
+
+exports.handler = async (event) => {
+  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method not allowed' };
+
+  // 1. Signature (HMAC SHA512)
+  const sig = event.headers['x-paystack-signature'] || event.headers['X-Paystack-Signature'];
+  if (!paystackValidSignature(event.body, sig)) {
+    console.warn('[paystack] invalid signature');
+    return { statusCode: 401, body: 'Invalid signature' };
+  }
+
+  let payload;
+  try { payload = JSON.parse(event.body); } catch { return { statusCode: 400, body: 'Bad JSON' }; }
+
+  // On répond 200 vite ; on ne traite que charge.success
+  if (payload.event !== 'charge.success') {
+    return { statusCode: 200, body: 'ignored' };
+  }
+
+  try {
+    const data = payload.data || {};
+    const meta = data.metadata || {};
+    const reservationId = meta.reservationId;
+    if (!reservationId) {
+      console.warn('[paystack] no reservationId in metadata');
+      return { statusCode: 200, body: 'no-reservation' };
+    }
+
+    // Idempotence : si déjà traité, on sort
+    const existing = await airtable(
+      `${airtableTable(TABLES.RESERVATIONS)}/${reservationId}`, { method: 'GET' }
+    ).catch(() => null);
+    const curStatut = existing?.fields?.['Statut'];
+    if (curStatut === 'Confirmée' || curStatut === 'Soldée') {
+      return { statusCode: 200, body: 'already-processed' };
+    }
+
+    const choice = meta.choice === 'total' ? 'total' : 'acompte';
+    const total = Number(meta.total) || 0;
+    const paid = Number(meta.amountPaid) || 0;
+    const solde = choice === 'total' ? 0 : Math.max(0, total - paid);
+    const statut = choice === 'total' ? 'Soldée' : 'Confirmée';
+
+    const prevNotes = existing?.fields?.['Notes'] || '';
+    const payNote = `✅ ${choice === 'total' ? 'Payé en totalité' : 'Acompte payé'} ${paid} F (Paystack ${data.reference})`
+      + (solde ? ` · solde ${solde} F à régler au studio` : ' · SOLDÉE');
+
+    await airtable(`${airtableTable(TABLES.RESERVATIONS)}/${reservationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        fields: {
+          'Statut': statut,
+          'Acompte payé': true,
+          'Mode paiement': `Paystack (${choice})`,
+          'Notes': prevNotes.split('\n')[0].split(' · 💳')[0] + `\n${payNote}`,
+        },
+        typecast: true,
+      }),
+    });
+
+    // Notif Boss
+    const summary =
+      `💳 PAIEMENT REÇU — MELODIA\n` +
+      `${meta.name || 'Client'} (${meta.phone || '—'})\n` +
+      `${meta.service} · ${meta.date} ${meta.slotLabel || ''}\n` +
+      `${choice === 'total' ? `Payé TOTAL ${paid} F` : `Acompte ${paid} F · solde ${solde} F au studio`}\n` +
+      `Réf ${meta.ref || data.reference}`;
+    await sendWhatsApp(summary).catch(() => {});
+
+    // Confirmation au client sur WhatsApp si la résa vient du bot
+    if (meta.channel === 'whatsapp' && meta.phone) {
+      const msg =
+        `✅ *C'est confirmé !*\n\n` +
+        `🎙️ ${meta.service}\n📅 ${meta.date} · ${meta.slotLabel || ''}\n` +
+        `💳 ${choice === 'total' ? `Payé en totalité (${paid} F)` : `Acompte reçu : ${paid} F`}\n` +
+        (solde ? `💰 Solde à régler au studio : *${solde} F*\n` : '') +
+        `🔖 Réf : *${meta.ref || data.reference}*\n\n` +
+        `Ton créneau est bloqué 👌 À très vite chez Melodia !`;
+      await sendYCloudText(meta.phone, msg).catch(() => {});
+    }
+
+    return { statusCode: 200, body: 'OK' };
+  } catch (e) {
+    console.error('[paystack] handler error:', e);
+    return { statusCode: 200, body: 'error-logged' };
+  }
+};
+
+// Envoi texte via YCloud (même transport que le bot)
+async function sendYCloudText(to, body) {
+  const apiKey = process.env.YCLOUD_API_KEY;
+  const from = process.env.YCLOUD_FROM || '2250703387738';
+  if (!apiKey) return null;
+  try {
+    await fetch('https://api.ycloud.com/v2/whatsapp/messages', {
+      method: 'POST',
+      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to, type: 'text', text: { body } }),
+    });
+  } catch (e) { console.error('[paystack] ycloud send failed:', e.message); }
+}

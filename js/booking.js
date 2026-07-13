@@ -58,7 +58,9 @@ const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Aoû
 
 // Tarif mardi : l'heure de studio à 15 000 F tous les mardis (toute la journée).
 const TUESDAY_HOUR_PRICE = 15000;
+const DEPOSIT_XOF = 2500; // acompte fixe (affichage ; le serveur reste la source de vérité)
 function isTuesday(iso) { return !!iso && new Date(iso + 'T00:00:00').getDay() === 2; }
+const fmtF = (n) => (n || 0).toLocaleString('fr-FR').replace(/,/g, ' ') + ' F';
 // Applique/retire le tarif mardi sur un item "heure de studio" selon sa date planifiée.
 function applyTuesdayPricing(item) {
   if (!item || item.id !== 'rec-hour') return;
@@ -889,7 +891,87 @@ function formatDateLabel(iso) {
 // =========================================================
 // SUBMIT
 // =========================================================
+// Écran de paiement (mode classic) : choix acompte / total → Paystack.
+function paymentTotal() {
+  const svc = DATA.services.find(s => s.id === state.service);
+  if (state.service === 'rec' && isTuesday(state.date)) return TUESDAY_HOUR_PRICE;
+  return svc?.base ?? 0;
+}
+
+function showPaymentChoice() {
+  const svc = DATA.services.find(s => s.id === state.service);
+  const total = paymentTotal();
+  const deposit = Math.min(DEPOSIT_XOF, total);
+  const solde = Math.max(0, total - deposit);
+  const main = document.getElementById('booking-main');
+  main.innerHTML = `
+    <div style="max-width:560px;margin:0 auto;padding:2.5rem 1.5rem;">
+      <h2 class="h-display" style="margin:0 0 6px;">Bloque ta session</h2>
+      <p style="color:var(--fg-dim);margin:0 0 24px;line-height:1.6;">
+        ${svc?.name || 'Session'} · ${formatDateLabel(state.date)} · ${state.slotLabel || state.slotTime}<br>
+        Prix total : <b style="color:var(--fg);">${fmtF(total)}</b>
+      </p>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <button id="pay-acompte" class="btn btn--primary btn--lg" style="justify-content:space-between;display:flex;">
+          <span>💳 Bloquer avec acompte</span><span>${fmtF(deposit)}</span>
+        </button>
+        <p style="font-size:12px;color:var(--fg-low);margin:-6px 0 6px 4px;">Solde de ${fmtF(solde)} à régler au studio.</p>
+        <button id="pay-total" class="btn btn--ghost btn--lg" style="justify-content:space-between;display:flex;">
+          <span>💳 Tout payer maintenant</span><span>${fmtF(total)}</span>
+        </button>
+      </div>
+      <p style="font-size:12px;color:var(--fg-low);margin-top:20px;text-align:center;">
+        Paiement sécurisé Paystack · carte, Orange Money, Wave, MTN.
+      </p>
+      <div id="pay-error" style="display:none;margin-top:16px;color:var(--danger,#FF4D5E);font-size:13px;text-align:center;"></div>
+      <div style="text-align:center;margin-top:18px;">
+        <button class="btn btn--ghost" onclick="location.reload()">← Retour</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('pay-acompte').addEventListener('click', () => startPayment('acompte'));
+  document.getElementById('pay-total').addEventListener('click', () => startPayment('total'));
+}
+
+async function startPayment(choice) {
+  const btns = document.querySelectorAll('#pay-acompte, #pay-total');
+  btns.forEach(b => { b.disabled = true; b.style.opacity = '0.6'; });
+  const err = document.getElementById('pay-error');
+  err.style.display = 'none';
+  try {
+    const res = await fetch('/api/create-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel: 'site',
+        service: state.service,
+        date: state.date,
+        slotTime: state.slotTime,
+        slotLabel: state.slotLabel,
+        duration: DATA.services.find(s => s.id === state.service)?.duration || 1,
+        choice,
+        price: paymentTotal(),
+        details: state.details,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok || !data.authorization_url) throw new Error(data.error || 'Paiement indisponible');
+    window.location.href = data.authorization_url; // → checkout Paystack
+  } catch (e) {
+    console.error('[payment] failed:', e);
+    err.textContent = e.message || 'Souci de paiement. Réessaie ou écris-nous sur WhatsApp.';
+    err.style.display = 'block';
+    btns.forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+  }
+}
+
 async function handleSubmit() {
+  // Mode classic → écran de paiement (bloque le créneau via acompte/total).
+  // Mode cart (multi-services) → flux existant sans paiement pour l'instant.
+  if (state.mode !== 'cart') {
+    return showPaymentChoice();
+  }
+
   const payload = state.mode === 'cart'
     ? {
         mode: 'cart',

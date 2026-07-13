@@ -48,6 +48,13 @@ exports.handler = async (event) => {
   try { payload = JSON.parse(event.body); } catch { return { statusCode: 400, body: 'Bad JSON' }; }
 
   try {
+    // ---- YCloud : whatsapp.inbound_message.received ----
+    if (payload.type === 'whatsapp.inbound_message.received' && payload.whatsappInboundMessage) {
+      await handleYCloudMessage(payload.whatsappInboundMessage);
+      return { statusCode: 200, body: 'OK' };
+    }
+
+    // ---- Meta Cloud API (format natif / simulations) ----
     // Parcourt les entries (Meta peut envoyer plusieurs events groupés)
     for (const entry of (payload.entry || [])) {
       for (const change of (entry.changes || [])) {
@@ -69,7 +76,30 @@ exports.handler = async (event) => {
 };
 
 // =====================================================
-// Routing des messages entrants
+// YCloud — message entrant (transport de prod)
+// =====================================================
+async function handleYCloudMessage(m) {
+  const from = m.from;                        // ex "2250700000000"
+  const name = m.customerProfile?.name || 'là';
+
+  if (m.type === 'text') {
+    return await routeText(from, name, (m.text?.body || '').toLowerCase().trim());
+  }
+  if (m.type === 'interactive') {
+    const it = m.interactive || {};
+    const reply =
+      it.list_reply?.id || it.listReply?.id ||
+      it.button_reply?.id || it.buttonReply?.id;
+    return await routeAction(from, name, reply);
+  }
+  if (m.type === 'button') {
+    return await routeAction(from, name, m.button?.payload || m.button?.text);
+  }
+  return await sendText(from, `Salut ${name} ! Tape *menu* pour réserver ta session 🎙️`);
+}
+
+// =====================================================
+// Routing des messages entrants (Meta / simulations)
 // =====================================================
 async function handleMessage(msg, contact) {
   const from = msg.from;
@@ -498,6 +528,9 @@ async function sendText(to, body) {
 }
 
 async function callMeta(to, payload) {
+  // Si YCloud est configuré → on envoie via YCloud (transport de prod).
+  if (process.env.YCLOUD_API_KEY) return await callYCloud(to, payload);
+
   const phoneId = process.env.WHATSAPP_PHONE_ID;
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   if (!phoneId || !token) {
@@ -523,6 +556,31 @@ async function callMeta(to, payload) {
     return data;
   } catch (e) {
     console.error('[whatsapp] callMeta failed:', e.message);
+    return null;
+  }
+}
+
+// Envoi via YCloud — POST /v2/whatsapp/messages.
+// Le contenu (type/text/interactive/location) est identique à Meta ;
+// YCloud attend juste `from` (numéro studio E.164) + `to` + `X-API-Key`.
+async function callYCloud(to, payload) {
+  const apiKey = process.env.YCLOUD_API_KEY;
+  const from = process.env.YCLOUD_FROM || '2250703387738';
+  if (!apiKey) {
+    console.error('[ycloud] missing YCLOUD_API_KEY');
+    return null;
+  }
+  try {
+    const res = await fetch('https://api.ycloud.com/v2/whatsapp/messages', {
+      method: 'POST',
+      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to, ...payload }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) console.error('[ycloud] error:', res.status, JSON.stringify(data));
+    return data;
+  } catch (e) {
+    console.error('[ycloud] callYCloud failed:', e.message);
     return null;
   }
 }

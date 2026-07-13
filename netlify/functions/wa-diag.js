@@ -10,7 +10,7 @@ exports.handler = async (event) => {
   }
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_ID;
-  const wabaId = '974976515589962';
+  const wabaId = event.queryStringParameters?.waba || '974976515589962';
 
   const call = async (path) => {
     try {

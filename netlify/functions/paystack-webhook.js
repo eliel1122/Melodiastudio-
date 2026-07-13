@@ -32,19 +32,12 @@ exports.handler = async (event) => {
   try {
     const data = payload.data || {};
     const meta = data.metadata || {};
-    const reservationId = meta.reservationId;
-    if (!reservationId) {
-      console.warn('[paystack] no reservationId in metadata');
+    const ids = Array.isArray(meta.reservationIds) && meta.reservationIds.length
+      ? meta.reservationIds
+      : (meta.reservationId ? [meta.reservationId] : []);
+    if (!ids.length) {
+      console.warn('[paystack] no reservationId(s) in metadata');
       return { statusCode: 200, body: 'no-reservation' };
-    }
-
-    // Idempotence : si déjà traité, on sort
-    const existing = await airtable(
-      `${airtableTable(TABLES.RESERVATIONS)}/${reservationId}`, { method: 'GET' }
-    ).catch(() => null);
-    const curStatut = existing?.fields?.['Statut'];
-    if (curStatut === 'Confirmée' || curStatut === 'Soldée') {
-      return { statusCode: 200, body: 'already-processed' };
     }
 
     const choice = meta.choice === 'total' ? 'total' : 'acompte';
@@ -52,23 +45,32 @@ exports.handler = async (event) => {
     const paid = Number(meta.amountPaid) || 0;
     const solde = choice === 'total' ? 0 : Math.max(0, total - paid);
     const statut = choice === 'total' ? 'Soldée' : 'Confirmée';
-
-    const prevNotes = existing?.fields?.['Notes'] || '';
     const payNote = `✅ ${choice === 'total' ? 'Payé en totalité' : 'Acompte payé'} ${paid} F (Paystack ${data.reference})`
       + (solde ? ` · solde ${solde} F à régler au studio` : ' · SOLDÉE');
 
-    await airtable(`${airtableTable(TABLES.RESERVATIONS)}/${reservationId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        fields: {
-          'Statut': statut,
-          'Acompte payé': true,
-          'Mode paiement': `Paystack (${choice})`,
-          'Notes': prevNotes.split('\n')[0].split(' · 💳')[0] + `\n${payNote}`,
-        },
-        typecast: true,
-      }),
-    });
+    let alreadyDone = false;
+    for (const rid of ids) {
+      const existing = await airtable(
+        `${airtableTable(TABLES.RESERVATIONS)}/${rid}`, { method: 'GET' }
+      ).catch(() => null);
+      const cur = existing?.fields?.['Statut'];
+      if (cur === 'Confirmée' || cur === 'Soldée') { alreadyDone = true; continue; }
+      const prevNotes = existing?.fields?.['Notes'] || '';
+      await airtable(`${airtableTable(TABLES.RESERVATIONS)}/${rid}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          fields: {
+            'Statut': statut,
+            'Acompte payé': true,
+            'Mode paiement': `Paystack (${choice})`,
+            'Notes': prevNotes.split('\n')[0].split(' · 💳')[0] + `\n${payNote}`,
+          },
+          typecast: true,
+        }),
+      });
+    }
+    // Idempotence : si toutes étaient déjà traitées, on ne re-notifie pas
+    if (alreadyDone && ids.length === 1) return { statusCode: 200, body: 'already-processed' };
 
     // Notif Boss
     const summary =

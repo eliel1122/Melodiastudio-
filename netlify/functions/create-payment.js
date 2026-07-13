@@ -31,74 +31,85 @@ exports.handler = async (event) => {
   catch { return jsonResponse(400, { error: 'Body JSON invalide' }); }
 
   const details = p.details || {};
-  const service = p.service;
-  if (!service || !p.date || !p.slotTime) {
-    return jsonResponse(400, { error: 'Prestation, date et créneau requis' });
+
+  // Normalise en une liste d'items (classic = 1 item, cart = N items).
+  const items = Array.isArray(p.items) && p.items.length
+    ? p.items
+    : [{ service: p.service, date: p.date, slotTime: p.slotTime, slotLabel: p.slotLabel, duration: p.duration, price: p.price }];
+
+  if (items.some((it) => !it.service || !it.date || !it.slotTime)) {
+    return jsonResponse(400, { error: 'Prestation, date et créneau requis pour chaque service' });
   }
 
   try {
-    // 1. Prix total + acompte
-    const total = computeTotal(service, p.date, p.price);
-    const deposit = depositFor(service);
+    // 1. Prix total (somme des services) + acompte (fixe, une fois pour la commande)
+    const total = items.reduce((sum, it) => sum + computeTotal(it.service, it.date, it.price), 0);
+    const deposit = depositFor(items[0].service);
     const choice = p.choice === 'total' ? 'total' : 'acompte';
     const amountToPay = choice === 'total' ? total : Math.min(deposit, total);
-    const solde = choice === 'total' ? 0 : Math.max(0, total - amountToPay);
+    const solde = Math.max(0, total - amountToPay);
 
-    // 2. Client (recherche par tél/email, sinon création)
+    // 2. Client
     const clientId = await findOrCreateClient(details);
 
-    // 3. Réservation "En attente paiement" — bloque le créneau le temps du paiement
-    const ref = generateRef();
-    const record = await airtable(`${airtableTable(TABLES.RESERVATIONS)}`, {
-      method: 'POST',
-      body: JSON.stringify({
-        fields: {
-          'Référence': ref,
-          'Date': p.date,
-          'Heure début': p.slotTime,
-          'Durée (h)': p.duration || 1,
-          'Service': mapService(service),
-          'Statut': 'En attente paiement',
-          ...(clientId ? { 'Client': [clientId] } : {}),
-          'Acompte payé': false,
-          'Notes': [
-            details.project || '',
-            `💳 En attente ${choice === 'total' ? 'paiement total' : 'acompte'} ${amountToPay} F · total ${total} F` +
-            (solde ? ` · solde ${solde} F` : ''),
-            p.channel === 'whatsapp' && details.phone ? `via WhatsApp bot · ${details.phone}` : '',
-          ].filter(Boolean).join(' · '),
-        },
-        typecast: true,
-      }),
-    });
+    // 3. Une réservation "En attente paiement" par item (bloque chaque créneau)
+    const created = [];
+    for (const it of items) {
+      const ref = generateRef();
+      const rec = await airtable(`${airtableTable(TABLES.RESERVATIONS)}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          fields: {
+            'Référence': ref,
+            'Date': it.date,
+            'Heure début': it.slotTime,
+            'Durée (h)': it.duration || 1,
+            'Service': mapService(it.service),
+            'Statut': 'En attente paiement',
+            ...(clientId ? { 'Client': [clientId] } : {}),
+            'Acompte payé': false,
+            'Notes': [
+              details.project || '',
+              `💳 En attente ${choice === 'total' ? 'paiement total' : 'acompte'} ${amountToPay} F · total commande ${total} F` +
+              (solde ? ` · solde ${solde} F` : ''),
+              p.channel === 'whatsapp' && details.phone ? `via WhatsApp bot · ${details.phone}` : '',
+            ].filter(Boolean).join(' · '),
+          },
+          typecast: true,
+        }),
+      });
+      created.push({ id: rec.id, ref, service: mapService(it.service), date: it.date, slotLabel: it.slotLabel || it.slotTime });
+    }
 
-    // 4. Init Paystack — metadata porte tout ce dont le webhook a besoin
+    // 4. Init Paystack — 1 paiement pour toute la commande
+    const payRef = created[0].ref;
     const metadata = {
-      reservationId: record.id,
-      ref,
+      reservationId: created[0].id,             // rétro-compat
+      reservationIds: created.map((c) => c.id), // toutes les résas de la commande
+      ref: payRef,
       channel: p.channel || 'site',
       choice,
       total,
       amountPaid: amountToPay,
       solde,
-      service: mapService(service),
-      date: p.date,
-      slotLabel: p.slotLabel || p.slotTime,
+      service: created.map((c) => c.service).join(' + '),
+      date: created[0].date,
+      slotLabel: created.length > 1 ? `${created.length} services` : created[0].slotLabel,
       name: details.name || '',
       phone: details.phone || '',
     };
     const pay = await paystackInit({
       email: details.email,
       amountXof: amountToPay,
-      reference: ref,
+      reference: payRef,
       metadata,
       callbackUrl: `${SITE}/pages/paiement-confirme.html`,
     });
 
     return jsonResponse(200, {
       ok: true,
-      ref,
-      reservationId: record.id,
+      ref: payRef,
+      reservationIds: created.map((c) => c.id),
       total, deposit: amountToPay, solde, choice,
       authorization_url: pay.authorization_url,
     });

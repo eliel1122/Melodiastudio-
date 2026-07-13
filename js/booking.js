@@ -891,24 +891,33 @@ function formatDateLabel(iso) {
 // =========================================================
 // SUBMIT
 // =========================================================
-// Écran de paiement (mode classic) : choix acompte / total → Paystack.
+// Écran de paiement : choix acompte / total → Paystack. Classic ET panier.
 function paymentTotal() {
+  if (state.mode === 'cart') {
+    return state.items.reduce((sum, it) => {
+      const p = (it.service === 'rec' || it.id === 'rec-hour') && isTuesday(it.planDate)
+        ? TUESDAY_HOUR_PRICE : (it.price || 0);
+      return sum + p;
+    }, 0);
+  }
   const svc = DATA.services.find(s => s.id === state.service);
   if (state.service === 'rec' && isTuesday(state.date)) return TUESDAY_HOUR_PRICE;
   return svc?.base ?? 0;
 }
 
 function showPaymentChoice() {
-  const svc = DATA.services.find(s => s.id === state.service);
   const total = paymentTotal();
   const deposit = Math.min(DEPOSIT_XOF, total);
   const solde = Math.max(0, total - deposit);
+  const recapLine = state.mode === 'cart'
+    ? `${state.items.length} service${state.items.length > 1 ? 's' : ''} · ${state.items.map(i => i.service).join(', ')}`
+    : `${DATA.services.find(s => s.id === state.service)?.name || 'Session'} · ${formatDateLabel(state.date)} · ${state.slotLabel || state.slotTime}`;
   const main = document.getElementById('booking-main');
   main.innerHTML = `
     <div style="max-width:560px;margin:0 auto;padding:2.5rem 1.5rem;">
-      <h2 class="h-display" style="margin:0 0 6px;">Bloque ta session</h2>
+      <h2 class="h-display" style="margin:0 0 6px;">Bloque ${state.mode === 'cart' ? 'tes sessions' : 'ta session'}</h2>
       <p style="color:var(--fg-dim);margin:0 0 24px;line-height:1.6;">
-        ${svc?.name || 'Session'} · ${formatDateLabel(state.date)} · ${state.slotLabel || state.slotTime}<br>
+        ${recapLine}<br>
         Prix total : <b style="color:var(--fg);">${fmtF(total)}</b>
       </p>
       <div style="display:flex;flex-direction:column;gap:14px;">
@@ -939,23 +948,33 @@ async function startPayment(choice) {
   const err = document.getElementById('pay-error');
   err.style.display = 'none';
   try {
+    const body = state.mode === 'cart'
+      ? {
+          channel: 'site', choice, details: state.details,
+          items: state.items.map((it) => {
+            const svc = DATA.services.find(s => s.id === it.service);
+            return {
+              service: it.service, date: it.planDate,
+              slotTime: it.planSlotTime, slotLabel: it.planSlotLabel,
+              duration: svc?.duration || it.duration || 1, price: it.price,
+            };
+          }),
+        }
+      : {
+          channel: 'site', service: state.service, date: state.date,
+          slotTime: state.slotTime, slotLabel: state.slotLabel,
+          duration: DATA.services.find(s => s.id === state.service)?.duration || 1,
+          choice, price: paymentTotal(), details: state.details,
+        };
     const res = await fetch('/api/create-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        channel: 'site',
-        service: state.service,
-        date: state.date,
-        slotTime: state.slotTime,
-        slotLabel: state.slotLabel,
-        duration: DATA.services.find(s => s.id === state.service)?.duration || 1,
-        choice,
-        price: paymentTotal(),
-        details: state.details,
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     if (!data.ok || !data.authorization_url) throw new Error(data.error || 'Paiement indisponible');
+    // Le panier a rempli son rôle → on le vide avant la redirection.
+    if (state.mode === 'cart') { try { window.MelodiaCart.clear(); } catch (_) {} }
     window.location.href = data.authorization_url; // → checkout Paystack
   } catch (e) {
     console.error('[payment] failed:', e);
@@ -966,12 +985,10 @@ async function startPayment(choice) {
 }
 
 async function handleSubmit() {
-  // Mode classic → écran de paiement (bloque le créneau via acompte/total).
-  // Mode cart (multi-services) → flux existant sans paiement pour l'instant.
-  if (state.mode !== 'cart') {
-    return showPaymentChoice();
-  }
+  // Classic ET panier → écran de paiement (acompte/total) qui bloque le(s) créneau(x).
+  return showPaymentChoice();
 
+  /* eslint-disable no-unreachable -- ancien flux create-booking conservé pour référence */
   const payload = state.mode === 'cart'
     ? {
         mode: 'cart',

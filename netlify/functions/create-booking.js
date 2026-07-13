@@ -56,7 +56,7 @@ exports.handler = async (event) => {
           fields: {
             'Référence': ref,
             ...(it.date ? { 'Date': it.date } : {}),
-            'Heure début': it.slotTime || '',
+            'Heure début': normalizeStartTime(it.slotTime),
             'Durée (h)': it.duration || 1,
             'Service': mapService(it.service),
             'Statut': 'En attente',
@@ -258,6 +258,19 @@ function remiseForTier(tier) {
     case 'Platinum': return 15;
     default:         return 0;
   }
+}
+
+// Le front envoie le label du slot ("10h — 11h", "14h — 14h30"…) :
+// on stocke une heure de début propre "HH:MM" pour que get-availability
+// (et un humain dans Airtable) la lise sans ambiguïté.
+function normalizeStartTime(str) {
+  if (!str || typeof str !== 'string') return '';
+  const m = str.match(/(\d{1,2})\s*(?:[h:](\d{2})?)?/);
+  if (!m) return str;
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2] || '0', 10);
+  if (isNaN(h) || h < 0 || h > 23) return str;
+  return `${String(h).padStart(2, '0')}:${String(isNaN(min) ? 0 : min).padStart(2, '0')}`;
 }
 
 function generateRef() {

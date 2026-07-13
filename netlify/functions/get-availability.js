@@ -41,19 +41,23 @@ exports.handler = async (event) => {
     const occupied = [];
 
     for (const r of (reservations.records || [])) {
-      const startStr = r.fields['Heure début'];
-      const dur = parseInt(r.fields['Durée (h)'] || 1, 10);
-      const startMin = parseTimeToMinutes(startStr);
-      if (startMin == null) continue;
-      occupied.push({ start: startMin, end: startMin + dur * 60, source: 'reservation', service: r.fields['Service'] });
+      const range = parseTimeRange(r.fields['Heure début']);
+      if (!range) continue;
+      // Priorité au champ Durée (h) ; sinon la fin du label ("10h — 11h") ; sinon 1h
+      const durField = parseInt(r.fields['Durée (h)'], 10);
+      const end = (!isNaN(durField) && durField > 0)
+        ? range.start + durField * 60
+        : (range.end != null && range.end > range.start) ? range.end : range.start + 60;
+      occupied.push({ start: range.start, end, source: 'reservation', service: r.fields['Service'] });
     }
     for (const b of (bloques.records || [])) {
-      const startStr = b.fields['Heure début'];
-      const endStr = b.fields['Heure fin'];
-      const startMin = parseTimeToMinutes(startStr);
-      const endMin = parseTimeToMinutes(endStr);
-      if (startMin == null || endMin == null) continue;
-      occupied.push({ start: startMin, end: endMin, source: 'blocage', reason: b.fields['Raison'] });
+      const startRange = parseTimeRange(b.fields['Heure début']);
+      const endRange = parseTimeRange(b.fields['Heure fin']);
+      if (!startRange) continue;
+      const end = endRange ? endRange.start
+        : (startRange.end != null && startRange.end > startRange.start) ? startRange.end : null;
+      if (end == null) continue;
+      occupied.push({ start: startRange.start, end, source: 'blocage', reason: b.fields['Raison'] });
     }
 
     return jsonResponse(200, {
@@ -68,12 +72,19 @@ exports.handler = async (event) => {
   }
 };
 
-function parseTimeToMinutes(str) {
+// Accepte tous les formats rencontrés dans la base :
+//   "10:00" · "10h" · "10h30" · "10h — 11h" · "09h — 10h30" · "10"
+// Renvoie { start, end|null } en minutes depuis minuit.
+function parseTimeRange(str) {
   if (!str || typeof str !== 'string') return null;
-  const m = str.match(/^(\d{1,2}):?(\d{2})?$/);
-  if (!m) return null;
-  const h = parseInt(m[1], 10);
-  const min = parseInt(m[2] || '0', 10);
-  if (isNaN(h) || isNaN(min) || h < 0 || h > 23 || min < 0 || min > 59) return null;
-  return h * 60 + min;
+  const tokens = [...str.matchAll(/(\d{1,2})\s*(?:[h:](\d{2})?)?/g)]
+    .map((m) => {
+      const h = parseInt(m[1], 10);
+      const min = parseInt(m[2] || '0', 10);
+      if (isNaN(h) || h < 0 || h > 23 || isNaN(min) || min < 0 || min > 59) return null;
+      return h * 60 + min;
+    })
+    .filter((v) => v != null);
+  if (!tokens.length) return null;
+  return { start: tokens[0], end: tokens.length > 1 ? tokens[1] : null };
 }

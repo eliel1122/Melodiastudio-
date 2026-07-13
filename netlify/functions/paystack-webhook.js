@@ -91,7 +91,11 @@ exports.handler = async (event) => {
         `💳 ${choice === 'total' ? `Payé en totalité (${paid} F)` : `Acompte reçu : ${paid} F`}\n` +
         (solde ? `💰 Solde à régler au studio : *${solde} F*\n` : '') +
         `🔖 Réf : *${meta.ref || data.reference}*\n\n` +
-        `Ton créneau est bloqué 👌 À très vite chez Melodia !`;
+        `Ton créneau est bloqué 👌 À très vite chez Melodia !\n\n` +
+        `📱 Suis-nous :\n` +
+        `📷 https://instagram.com/melodia.studi0\n` +
+        `🎵 https://tiktok.com/@melodia.studi0\n` +
+        `👍 https://www.facebook.com/904016509455383`;
       await sendYCloudText(wa, msg).catch(() => {});
     }
 

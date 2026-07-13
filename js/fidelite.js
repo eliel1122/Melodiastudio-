@@ -271,7 +271,7 @@
         <span class="tier-bar"></span>
         <div class="mlc-header">
           <div class="mlc-brand">
-            <img src="${opts.logoPath || '../assets/images/melodia-logo.png'}" alt="Melodia">
+            <img src="${opts.logoPath || '../assets/images/melodia-logo-trim.png'}" alt="Melodia">
             <span class="program">// MELODIA FIDÉLITÉ</span>
           </div>
           <div class="mlc-tier">

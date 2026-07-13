@@ -268,8 +268,8 @@
   grid-column: 1 / 2;
   display: flex; justify-content: space-between; align-items: flex-start;
 }
-.mlc-brand { display: flex; flex-direction: column; gap: 3px; }
-.mlc-brand img { height: 28px; width: auto; }
+.mlc-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.mlc-brand img { height: 26px; width: auto; max-width: 150px; object-fit: contain; align-self: flex-start; }
 .mlc-brand .program {
   font-family: 'JetBrains Mono', monospace;
   font-size: 8px;

@@ -131,8 +131,16 @@ async function routeText(from, name, text) {
   if (/(tarif|prix|combien|cout)/i.test(text)) return await routeAction(from, name, 'TARIFS');
   if (/(reserv|book|booking|seance)/i.test(text)) return await routeAction(from, name, 'RESERVER');
   if (/(adresse|où|ou|map|location|venir)/i.test(text)) return await routeAction(from, name, 'ADRESSE');
-  if (/(fidelit|carte|point)/i.test(text)) return await routeAction(from, name, 'FIDELITE');
+  if (/(fidelit|carte|point)/i.test(text)) return await routeAction(from, name, 'FID_CARTE');
+  if (/(visit|tour|voir le studio)/i.test(text)) return await routeAction(from, name, 'VISITE');
+  if (/(devis|projet|budget)/i.test(text)) return await routeAction(from, name, 'DEVIS');
+  if (/(insta|facebook|tiktok|reseau|réseau|suivre)/i.test(text)) return await routeAction(from, name, 'RESEAUX');
   if (/(contact|joindre|telephone|email)/i.test(text)) return await routeAction(from, name, 'CONTACT');
+  // Message libre "réel" (probable demande de devis / question) → on le transmet au Boss.
+  if (text.length > 12 && /\s/.test(text)) {
+    await sendWhatsApp(`💬 MESSAGE CLIENT (WhatsApp)\n${name} (+${from}) :\n${text.slice(0, 400)}`).catch(() => {});
+    return await sendText(from, `Bien reçu ${name} 🙏 On revient vers toi très vite. En attendant, tape *menu* pour réserver ou voir les tarifs.`);
+  }
   // Default : menu
   return await sendMainMenu(from, name);
 }
@@ -163,6 +171,13 @@ async function routeAction(from, name, actionId) {
     case 'TARIFS':    return await sendTarifs(from);
     case 'ADRESSE':   return await sendAdresse(from);
     case 'FIDELITE':  return await sendFidelite(from);
+    case 'FID_CARTE': return await sendMaCarte(from, name);
+    case 'FID_CREER': return await creerCarte(from, name);
+    case 'VISITE':    return await sendVisiteMenu(from);
+    case 'VVIRT':     return await sendVisiteVirtuelle(from);
+    case 'VPHYS':     return await sendVisitePhysique(from);
+    case 'DEVIS':     return await sendDevis(from, name);
+    case 'RESEAUX':   return await sendReseaux(from);
     case 'CONTACT':   return await sendContact(from);
     case 'MENU':      return await sendMainMenu(from, name);
     default:          return await sendMainMenu(from, name);
@@ -176,19 +191,150 @@ async function sendMainMenu(from, name) {
   return await callMeta(from, {
     type: 'interactive',
     interactive: {
-      type: 'button',
+      type: 'list',
       header: { type: 'text', text: '🎙️ Melodia Studio' },
-      body: { text: `Salut ${name} ! Bienvenue chez Melodia. Sur quoi je peux t'aider ?` },
+      body: { text: `Salut ${name} ! Bienvenue chez Melodia. Qu'est-ce qui t'amène ?` },
       footer: { text: 'Le studio des artistes qui montent · Abidjan' },
       action: {
-        buttons: [
-          { type: 'reply', reply: { id: 'RESERVER', title: '🎙️ Réserver' } },
-          { type: 'reply', reply: { id: 'TARIFS',   title: '📋 Tarifs' } },
-          { type: 'reply', reply: { id: 'ADRESSE',  title: '📍 Adresse' } },
+        button: 'Voir le menu',
+        sections: [
+          { title: 'Réserver & tarifs', rows: [
+            { id: 'RESERVER', title: '🎙️ Réserver une session', description: 'Bloque ton créneau en ligne' },
+            { id: 'TARIFS',   title: '📋 Tarifs', description: 'Enregistrement, mix, master…' },
+            { id: 'DEVIS',    title: '✍️ Demander un devis', description: 'Projet particulier' },
+          ]},
+          { title: 'Le studio', rows: [
+            { id: 'FID_CARTE', title: '🎁 Ma carte fidélité', description: 'Points, statut, avantages' },
+            { id: 'VISITE',    title: '👀 Visiter le studio', description: 'Virtuel ou sur place' },
+            { id: 'ADRESSE',   title: '📍 Adresse & horaires', description: 'Cocody Riviera 4' },
+          ]},
+          { title: 'Rester connecté', rows: [
+            { id: 'RESEAUX', title: '📱 Nous suivre', description: 'Instagram, TikTok, Facebook' },
+            { id: 'CONTACT', title: '☎️ Contact', description: 'Téléphone, email' },
+          ]},
         ],
       },
     },
   });
+}
+
+// ---- Fidélité ----
+async function sendMaCarte(from, name) {
+  const client = await findClientByPhone(from);
+  if (!client) {
+    return await callMeta(from, {
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: `🎁 *Carte fidélité Melodia*\n\nTu n'as pas encore de carte, ${name}. Crée-la gratuitement : 1 point offert, puis 1 séance offerte toutes les 5 réservations, et des remises qui montent (jusqu'à −15%).` },
+        action: { buttons: [
+          { type: 'reply', reply: { id: 'FID_CREER', title: '✅ Créer ma carte' } },
+          { type: 'reply', reply: { id: 'MENU', title: '⬅️ Menu' } },
+        ]},
+      },
+    });
+  }
+  const f = client.fields || {};
+  const tier = f['Tier'] || 'Bronze';
+  const pts = f['Points actifs'] || 0;
+  const seances = f['Séances totales'] || 0;
+  const remise = { Argent: 5, Gold: 10, Platinum: 15 }[tier] || 0;
+  const offertes = (f['Sessions offertes gagnées'] || 0) - (f['Sessions offertes utilisées'] || 0);
+  return await sendText(from,
+    `🎁 *Ta carte fidélité*\n\n` +
+    `👤 ${f['Nom complet'] || name}\n` +
+    `🏅 Niveau : *${tier}*${remise ? ` (−${remise}%)` : ''}\n` +
+    `⭐ Points : *${pts}/5*\n` +
+    `🎬 Séances : *${seances}*\n` +
+    (offertes > 0 ? `🎉 Séances offertes dispo : *${offertes}*\n` : '') +
+    `\nEncore ${Math.max(0, 5 - pts)} point(s) pour une séance offerte 💪\n` +
+    `Ta carte : https://melodiastudio.pro/pages/ma-carte.html`
+  );
+}
+
+async function creerCarte(from, name) {
+  const existing = await findClientByPhone(from);
+  if (existing) return await sendMaCarte(from, name);
+  try {
+    await airtable(`${airtableTable(TABLES.CLIENTS)}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        fields: {
+          'Nom complet': name, 'Téléphone': `+${from}`,
+          'Tier': 'Bronze', 'Points actifs': 1, 'Séances totales': 0,
+        },
+        typecast: true,
+      }),
+    });
+  } catch (e) { console.error('[creerCarte]', e.message); }
+  return await sendText(from,
+    `🎉 *Bienvenue dans la Melodia Family, ${name} !*\n\n` +
+    `Ta carte *Bronze* est créée avec *1 point offert* ⭐\n` +
+    `Chaque réservation = +1 point. À 5 points, une séance offerte 🎁\n\n` +
+    `Ta carte : https://melodiastudio.pro/pages/ma-carte.html`
+  );
+}
+
+// ---- Visite ----
+async function sendVisiteMenu(from) {
+  return await callMeta(from, {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      header: { type: 'text', text: '👀 Visiter Melodia' },
+      body: { text: 'Tu veux découvrir le studio comment ?' },
+      action: { buttons: [
+        { type: 'reply', reply: { id: 'VVIRT', title: '🎬 Visite virtuelle' } },
+        { type: 'reply', reply: { id: 'VPHYS', title: '🚶 Sur place' } },
+        { type: 'reply', reply: { id: 'MENU', title: '⬅️ Menu' } },
+      ]},
+    },
+  });
+}
+async function sendVisiteVirtuelle(from) {
+  return await sendText(from,
+    `🎬 *Visite virtuelle du studio*\n\n` +
+    `Découvre la control room et la cabine en vidéo, plus tout notre matos :\n` +
+    `👉 https://melodiastudio.pro/pages/studio.html\n\n` +
+    `Quand tu veux le voir en vrai, tape *visiter* → sur place 🙌`
+  );
+}
+async function sendVisitePhysique(from) {
+  await sendAdresse(from);
+  return await sendText(from,
+    `🚶 *Passer au studio*\n\nOn te fait visiter avec plaisir ! Dis-nous quand tu veux passer (jour + heure) et on te confirme. Ou réserve direct ta session : tape *réserver* 🎙️`
+  );
+}
+
+// ---- Devis ----
+async function sendDevis(from, name) {
+  return await sendText(from,
+    `✍️ *Demander un devis*\n\n` +
+    `Décris-nous ton projet ${name} : type (single, EP, album, clip, pub…), nombre de titres, deadline, budget indicatif, références.\n\n` +
+    `Écris tout ici en un message, on te fait une proposition sous 24h 🤝`
+  );
+}
+
+// ---- Réseaux ----
+async function sendReseaux(from) {
+  return await sendText(from,
+    `📱 *Suis Melodia Studio*\n\n` +
+    `📷 Instagram : https://instagram.com/melodia.studi0\n` +
+    `🎵 TikTok : https://tiktok.com/@melodia.studi0\n` +
+    `👍 Facebook : https://www.facebook.com/904016509455383\n\n` +
+    `Sessions, coulisses, artistes qui montent 🔥`
+  );
+}
+
+// Recherche un client Airtable par son numéro WhatsApp (from = wa_id sans +).
+async function findClientByPhone(from) {
+  const last8 = from.replace(/\D/g, '').slice(-8);
+  const filter = `OR(FIND('${last8}', {Téléphone}), {Téléphone} = '+${from}')`;
+  const found = await airtable(
+    `${airtableTable(TABLES.CLIENTS)}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=1`,
+    { method: 'GET' }
+  ).catch(() => ({ records: [] }));
+  return found.records?.[0] || null;
 }
 
 async function sendTarifs(from) {

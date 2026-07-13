@@ -37,21 +37,31 @@ async function getClient(id) {
   return await airtable(`${airtableTable(TABLES.CLIENTS)}/${id}`, { method: 'GET' });
 }
 
+// PATCH résilient : si Airtable renvoie "Unknown field name", on retire ce
+// champ et on réessaie (permet de fonctionner même si un champ optionnel
+// comme "Sessions offertes gagnées" n'existe pas encore dans la base).
+async function patchResilient(path, fields) {
+  const body = { ...fields };
+  for (let i = 0; i < 6; i++) {
+    try {
+      return await airtable(path, { method: 'PATCH', body: JSON.stringify({ fields: body, typecast: true }) });
+    } catch (e) {
+      const m = /Unknown field name:\s*"([^"]+)"/.exec(e.message || '');
+      if (m && m[1] in body) { delete body[m[1]]; continue; }
+      throw e;
+    }
+  }
+}
+
 // Encaisse le solde → Soldée
 async function markPaid(id) {
   if (!id) return jsonResponse(400, { error: 'reservationId requis' });
   const r = await getResa(id);
   const prev = r.fields?.['Notes'] || '';
-  await airtable(`${airtableTable(TABLES.RESERVATIONS)}/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      fields: {
-        'Statut': 'Soldée',
-        'Acompte payé': true,
-        'Notes': prev + `\n✅ Solde encaissé au studio (console)`,
-      },
-      typecast: true,
-    }),
+  await patchResilient(`${airtableTable(TABLES.RESERVATIONS)}/${id}`, {
+    'Statut': 'Soldée',
+    'Acompte payé': true,
+    'Notes': prev + `\n✅ Solde encaissé au studio (console)`,
   });
   return jsonResponse(200, { ok: true, statut: 'Soldée' });
 }
@@ -61,12 +71,9 @@ async function markDone(id) {
   if (!id) return jsonResponse(400, { error: 'reservationId requis' });
   const r = await getResa(id);
   const prev = r.fields?.['Notes'] || '';
-  await airtable(`${airtableTable(TABLES.RESERVATIONS)}/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      fields: { 'Statut': 'Terminée', 'Notes': prev + `\n🎬 Session terminée (console)` },
-      typecast: true,
-    }),
+  await patchResilient(`${airtableTable(TABLES.RESERVATIONS)}/${id}`, {
+    'Statut': 'Terminée',
+    'Notes': prev + `\n🎬 Session terminée (console)`,
   });
 
   // Fidélité : +1 séance / +1 point (reset à 5 → 1 séance offerte)
@@ -91,10 +98,7 @@ async function useFreeSession(clientId) {
   const gagnees = f['Sessions offertes gagnées'] || 0;
   const utilisees = f['Sessions offertes utilisées'] || 0;
   if (gagnees - utilisees <= 0) return jsonResponse(400, { error: 'Aucune séance offerte disponible' });
-  await airtable(`${airtableTable(TABLES.CLIENTS)}/${clientId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ fields: { 'Sessions offertes utilisées': utilisees + 1 }, typecast: true }),
-  });
+  await patchResilient(`${airtableTable(TABLES.CLIENTS)}/${clientId}`, { 'Sessions offertes utilisées': utilisees + 1 });
   return jsonResponse(200, { ok: true, offertesDispo: gagnees - utilisees - 1 });
 }
 
@@ -112,17 +116,11 @@ async function bumpFidelity(clientId, delta) {
   if (seances < 0) seances = 0;
 
   const tier = computeTier(seances);
-  await airtable(`${airtableTable(TABLES.CLIENTS)}/${clientId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      fields: {
-        'Tier': tier,
-        'Points actifs': points,
-        'Séances totales': seances,
-        'Sessions offertes gagnées': offertes,
-      },
-      typecast: true,
-    }),
+  await patchResilient(`${airtableTable(TABLES.CLIENTS)}/${clientId}`, {
+    'Tier': tier,
+    'Points actifs': points,
+    'Séances totales': seances,
+    'Sessions offertes gagnées': offertes,
   });
   return { tier, points, seances, offertesGagnees: offertes, sessionUnlocked: unlocked };
 }

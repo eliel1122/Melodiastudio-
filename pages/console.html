@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Console Studio · Melodia</title>
+  <meta name="theme-color" content="#08080C" />
+  <meta name="robots" content="noindex" />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    :root { --bg:#08080C; --card:#0e0e16; --fg:#F5F5F7; --dim:#A8A8B5; --low:#5a5a68; --accent:#1E90FF; --danger:#FF4D5E; --ok:#22c55e; --line:rgba(255,255,255,.09); }
+    * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+    body { background:var(--bg); color:var(--fg); font-family:Inter,-apple-system,sans-serif; min-height:100dvh; }
+    .wrap { max-width:520px; margin:0 auto; padding:18px 16px 40px; }
+    .brand { font-family:Anton,sans-serif; font-size:22px; letter-spacing:.5px; }
+    .brand span { color:var(--accent); }
+    .eyebrow { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.2em; color:var(--accent); text-transform:uppercase; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-top:14px; }
+    h2 { font-family:Anton,sans-serif; font-size:22px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px; }
+    label { display:block; font-size:12px; color:var(--dim); margin:0 0 6px; }
+    input { width:100%; background:#141420; border:1px solid var(--line); border-radius:12px; color:var(--fg); font-size:16px; padding:14px; outline:none; }
+    input:focus { border-color:var(--accent); }
+    .btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; border:none; border-radius:12px; font-size:15px; font-weight:600; padding:14px; cursor:pointer; color:#fff; background:var(--accent); }
+    .btn.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); }
+    .btn.ok { background:var(--ok); }
+    .btn.danger { background:transparent; border:1px solid rgba(255,77,94,.4); color:var(--danger); }
+    .btn:disabled { opacity:.5; }
+    .row { display:flex; gap:10px; }
+    .row > * { flex:1; }
+    .tabs { display:flex; gap:8px; margin-top:14px; }
+    .tab { flex:1; text-align:center; padding:11px; border-radius:12px; border:1px solid var(--line); font-size:14px; font-weight:600; color:var(--dim); cursor:pointer; }
+    .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .kv { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:14px; }
+    .kv:last-child { border-bottom:none; }
+    .kv b { color:var(--fg); }
+    .pill { display:inline-block; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.15em; text-transform:uppercase; padding:4px 10px; border-radius:20px; border:1px solid var(--line); }
+    .pill.ok { color:var(--ok); border-color:rgba(34,197,94,.4); }
+    .pill.wait { color:#eab308; border-color:rgba(234,179,8,.4); }
+    .pill.paid { color:var(--accent); border-color:rgba(30,144,255,.4); }
+    .muted { color:var(--dim); font-size:13px; line-height:1.5; }
+    .err { color:var(--danger); font-size:13px; margin-top:10px; text-align:center; }
+    #reader { border-radius:14px; overflow:hidden; margin-top:12px; }
+    #reader video { border-radius:14px; }
+    .tier { font-family:Anton,sans-serif; font-size:20px; text-transform:uppercase; }
+    .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#141420; border:1px solid var(--line); padding:12px 18px; border-radius:12px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; }
+    .toast.show { opacity:1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="brand">MELODIA<span>.</span></div>
+      <div class="eyebrow">Console Studio</div>
+    </div>
+
+    <!-- PIN -->
+    <div id="pin-screen" class="card" style="margin-top:22px;">
+      <h2>Accès staff</h2>
+      <p class="muted" style="margin-bottom:14px;">Entre ton code pour ouvrir la console.</p>
+      <label for="pin">Code</label>
+      <input id="pin" type="password" inputmode="numeric" placeholder="••••" />
+      <div style="height:12px;"></div>
+      <button class="btn" id="pin-go">Ouvrir</button>
+      <div id="pin-err" class="err" style="display:none;"></div>
+    </div>
+
+    <!-- APP -->
+    <div id="app" style="display:none;">
+      <div class="tabs">
+        <div class="tab active" data-tab="scan">📷 Scanner</div>
+        <div class="tab" data-tab="search">🔎 Recherche</div>
+      </div>
+
+      <div id="tab-scan" class="card">
+        <p class="muted">Scanne le QR d'un reçu de réservation ou d'une carte fidélité.</p>
+        <div id="reader"></div>
+        <button class="btn ghost" id="scan-restart" style="margin-top:12px;display:none;">↻ Rescanner</button>
+      </div>
+
+      <div id="tab-search" class="card" style="display:none;">
+        <label for="q">Référence (MEL-…) ou numéro WhatsApp</label>
+        <input id="q" type="text" placeholder="MEL-260716-XXXX ou 07…" />
+        <div style="height:12px;"></div>
+        <button class="btn" id="q-go">Rechercher</button>
+      </div>
+
+      <div id="result"></div>
+      <div id="err" class="err" style="display:none;"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fmtF = (n) => (Number(n) || 0).toLocaleString('fr-FR').replace(/,/g, ' ') + ' F';
+    let PIN = sessionStorage.getItem('console_pin') || '';
+    let qr = null;
+
+    function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2200); }
+    function showErr(m) { const e = $('err'); e.textContent = m; e.style.display = 'block'; setTimeout(() => e.style.display = 'none', 4000); }
+
+    async function api(path, body) {
+      const res = await fetch('/api/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: PIN, ...body }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) { sessionStorage.removeItem('console_pin'); location.reload(); throw new Error('Code'); }
+      if (!res.ok || data.error) throw new Error(data.error || 'Erreur');
+      return data;
+    }
+
+    // ---- PIN ----
+    $('pin-go').addEventListener('click', tryPin);
+    $('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryPin(); });
+    async function tryPin() {
+      PIN = $('pin').value.trim();
+      try {
+        // lookup bidon pour valider le PIN (400 = pin ok mais query vide)
+        await fetch('/api/console-lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: PIN }) })
+          .then(async r => { if (r.status === 401) throw new Error('Code incorrect'); });
+        sessionStorage.setItem('console_pin', PIN);
+        openApp();
+      } catch (e) { $('pin-err').textContent = e.message; $('pin-err').style.display = 'block'; }
+    }
+
+    function openApp() {
+      $('pin-screen').style.display = 'none';
+      $('app').style.display = 'block';
+      startScanner();
+      // deep-link (QR scanné avec l'appareil photo natif)
+      const q = new URLSearchParams(location.search);
+      if (q.get('ref')) lookup({ ref: q.get('ref') });
+      else if (q.get('phone')) lookup({ phone: q.get('phone') });
+    }
+
+    // ---- Tabs ----
+    document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      const tab = t.dataset.tab;
+      $('tab-scan').style.display = tab === 'scan' ? 'block' : 'none';
+      $('tab-search').style.display = tab === 'search' ? 'block' : 'none';
+      if (tab === 'scan') startScanner(); else stopScanner();
+    }));
+
+    // ---- Scanner ----
+    function parseQR(text) {
+      try { const u = new URL(text); const ref = u.searchParams.get('ref'); const phone = u.searchParams.get('phone'); if (ref) return { ref }; if (phone) return { phone }; } catch (_) {}
+      if (/^MEL-/i.test(text.trim())) return { ref: text.trim() };
+      if (/^\+?\d[\d\s]{6,}$/.test(text.trim())) return { phone: text.trim() };
+      return { query: text.trim() };
+    }
+    async function startScanner() {
+      if (qr) return;
+      qr = new Html5Qrcode('reader');
+      try {
+        await qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } },
+          (txt) => { stopScanner(); lookup(parseQR(txt)); $('scan-restart').style.display = 'block'; });
+      } catch (e) { showErr("Caméra indisponible. Utilise l'onglet Recherche."); }
+    }
+    async function stopScanner() { if (qr) { try { await qr.stop(); } catch (_) {} try { qr.clear(); } catch (_) {} qr = null; } }
+    $('scan-restart').addEventListener('click', () => { $('scan-restart').style.display = 'none'; $('result').innerHTML = ''; startScanner(); });
+
+    // ---- Recherche ----
+    $('q-go').addEventListener('click', () => { const v = $('q').value.trim(); if (v) lookup({ query: v }); });
+    $('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('q-go').click(); });
+
+    // ---- Lookup + render ----
+    let lastLookup = null;
+    async function lookup(params) {
+      lastLookup = params;
+      $('result').innerHTML = '<div class="card muted">Recherche…</div>';
+      try {
+        const d = await api('console-lookup', params);
+        if (d.kind === 'booking') renderBooking(d.reservation, d.client);
+        else if (d.kind === 'client') renderClient(d.client, d.reservations);
+      } catch (e) { $('result').innerHTML = ''; showErr(e.message); }
+    }
+
+    function statutPill(s) {
+      const map = { 'Soldée': 'ok', 'Terminée': 'ok', 'Confirmée': 'paid', 'En attente': 'wait', 'En attente paiement': 'wait', 'Annulée': 'danger' };
+      return `<span class="pill ${map[s] || ''}">${s || '—'}</span>`;
+    }
+
+    function renderBooking(r, c) {
+      $('result').innerHTML = `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h2 style="margin:0;">${r.service || 'Session'}</h2>${statutPill(r.statut)}
+          </div>
+          <div class="kv"><span>Client</span><b>${c.nom || '—'}</b></div>
+          <div class="kv"><span>WhatsApp</span><b>${c.phone || '—'}</b></div>
+          <div class="kv"><span>Date</span><b>${r.date || '—'} · ${r.heure || ''}</b></div>
+          <div class="kv"><span>Acompte</span><b>${r.acomptePaye ? '✅ payé' : '—'}</b></div>
+          ${r.solde ? `<div class="kv"><span>Solde à encaisser</span><b style="color:var(--accent)">${fmtF(r.solde)}</b></div>` : ''}
+          <div class="kv"><span>Réf</span><b style="font-family:'JetBrains Mono',monospace">${r.ref}</b></div>
+          <div style="height:14px;"></div>
+          <div class="row">
+            ${r.statut !== 'Soldée' && r.statut !== 'Terminée' ? `<button class="btn ok" data-act="mark_paid" data-id="${r.id}">💵 Encaisser le solde</button>` : ''}
+            <button class="btn" data-act="mark_done" data-id="${r.id}">🎬 Session terminée</button>
+          </div>
+          ${c.id && c.phone ? `<button class="btn ghost" style="margin-top:10px" data-open-phone="${c.phone}">Voir la fidélité de ${c.nom.split(' ')[0]}</button>` : ''}
+        </div>`;
+      bindActions();
+    }
+
+    function renderClient(c, resas) {
+      const tierColor = { Bronze: '#CD7F32', Argent: '#B8C5D6', Gold: '#E5B544', Platinum: '#E5E4E2' }[c.tier] || '#1E90FF';
+      const dispo = (c.offertesGagnees || 0) - (c.offertesUtilisees || 0);
+      $('result').innerHTML = `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div><h2 style="margin:0;">${c.nom}</h2><span class="muted">${c.phone || ''}</span></div>
+            <span class="tier" style="color:${tierColor}">${c.tier}</span>
+          </div>
+          <div style="height:10px;"></div>
+          <div class="kv"><span>Points actifs</span><b>${c.points}/5</b></div>
+          <div class="kv"><span>Séances totales</span><b>${c.seances}</b></div>
+          <div class="kv"><span>Séances offertes dispo</span><b style="color:${dispo>0?'var(--ok)':'var(--fg)'}">${dispo}</b></div>
+          <div style="height:14px;"></div>
+          <div class="row">
+            <button class="btn" data-act="fidelity_delta" data-id="${c.id}" data-delta="1">+1 point</button>
+            <button class="btn ghost" data-act="fidelity_delta" data-id="${c.id}" data-delta="-1">−1</button>
+          </div>
+          ${dispo > 0 ? `<button class="btn ok" style="margin-top:10px" data-act="use_free" data-id="${c.id}">🎁 Utiliser une séance offerte</button>` : ''}
+          ${resas && resas.length ? `<div style="margin-top:16px;"><p class="eyebrow" style="margin-bottom:8px;">Réservations</p>${resas.map(r => `<div class="kv"><span>${r.date} · ${r.service}</span>${statutPill(r.statut)}</div>`).join('')}</div>` : ''}
+        </div>`;
+      bindActions();
+    }
+
+    function bindActions() {
+      document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', async () => {
+        b.disabled = true;
+        try {
+          const d = await api('console-action', { action: b.dataset.act, reservationId: b.dataset.id, clientId: b.dataset.id, delta: b.dataset.delta });
+          if (b.dataset.act === 'mark_paid') { toast('Solde encaissé ✅'); if (lastLookup) lookup(lastLookup); }
+          else if (b.dataset.act === 'mark_done') { toast(d.fidelite?.sessionUnlocked ? '🎁 Séance offerte débloquée !' : 'Session terminée 🎬'); if (lastLookup) lookup(lastLookup); }
+          else if (b.dataset.act === 'fidelity_delta') { toast(d.fidelite?.sessionUnlocked ? '🎁 Séance offerte débloquée !' : 'Points mis à jour'); if (lastLookup) lookup(lastLookup); }
+          else if (b.dataset.act === 'use_free') { toast('Séance offerte utilisée ✅'); if (lastLookup) lookup(lastLookup); }
+        } catch (e) { showErr(e.message); b.disabled = false; }
+      }));
+      document.querySelectorAll('[data-open-phone]').forEach(b => b.addEventListener('click', () => lookup({ phone: b.dataset.openPhone })));
+    }
+
+    // Auto-open si PIN déjà en session
+    if (PIN) openApp();
+  </script>
+</body>
+</html>

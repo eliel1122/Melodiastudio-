@@ -100,7 +100,7 @@
           // QR : encode l'URL de vérification de la réservation
           try {
             new QRCode(document.getElementById('qr'), {
-              text: 'https://melodiastudio.pro/pages/verifier.html?ref=' + encodeURIComponent(ref),
+              text: 'https://melodiastudio.pro/pages/console.html?type=booking&ref=' + encodeURIComponent(ref),
               width: 96, height: 96, correctLevel: QRCode.CorrectLevel.M,
             });
           } catch (_) {}

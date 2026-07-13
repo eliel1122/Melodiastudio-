@@ -247,8 +247,9 @@
 
   // ============ QR CODE URL ============
   function getCardUrl(client) {
-    // L'URL que contient le QR (parsée par l'app de scan future)
-    return `https://melodia-studio.ci/c/${client.id}?sig=demo`;
+    // Le QR ouvre la Console Studio sur la fiche fidélité du client (par téléphone).
+    const phone = encodeURIComponent(client.phone || '');
+    return `https://melodiastudio.pro/pages/console.html?type=fidelity&phone=${phone}`;
   }
 
   // ============ RENDER HELPERS ============

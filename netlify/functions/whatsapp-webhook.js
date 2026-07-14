@@ -450,13 +450,15 @@ async function sendReserverFlow(from) {
 async function sendDates(from, svcId, pageArg) {
   const c = CATALOG[svcId];
   if (!c) return await sendMainMenu(from, 'là');
-  // 14 jours proposés (2 semaines). WhatsApp limite une liste à 10 lignes,
-  // donc pagination : page 0 = jours 1-9 + "Jours suivants", page 1 = jours 10-14 + retour.
+  // 30 jours proposés (~1 mois). WhatsApp limite une liste à 10 lignes,
+  // donc pagination : 9 dates en page 0 (+ "Jours suivants"), 8 dates sur les
+  // pages du milieu (+ "Précédents"/"Suivants"), le reste sur la dernière.
+  const TOTAL_DAYS = 30;
   const allRows = [];
   const now = new Date();
   // Aujourd'hui inclus seulement avant 18h ; sinon on démarre demain
   const startOffset = now.getUTCHours() < 18 ? 0 : 1;
-  for (let i = startOffset; allRows.length < 14; i++) {
+  for (let i = startOffset; allRows.length < TOTAL_DAYS; i++) {
     const d = new Date(now.getTime() + i * 86400000);
     const iso = d.toISOString().slice(0, 10);
     const dow = d.getUTCDay();
@@ -469,20 +471,25 @@ async function sendDates(from, svcId, pageArg) {
       description: mardi ? '🔥 Tarif mardi : 15 000 F / h' : (isToday ? label : undefined),
     });
   }
-  const page = pageArg === '1' ? 1 : 0;
-  const rows = page === 0 ? allRows.slice(0, 9) : allRows.slice(9);
-  rows.push(
-    page === 0
-      ? { id: `S|${svcId}|1`, title: '➡️ Jours suivants', description: 'Voir la semaine d\'après' }
-      : { id: `S|${svcId}|0`, title: '⬅️ Jours précédents', description: 'Revenir aux premiers jours' }
-  );
+  let page = Math.max(0, parseInt(pageArg, 10) || 0);
+  let first = page === 0 ? 0 : 9 + (page - 1) * 8;
+  if (first >= allRows.length) { page = 0; first = 0; } // page hors limites → retour au début
+  const slice = allRows.slice(first, first + (page === 0 ? 9 : 8));
+  const rows = [...slice];
+  if (page > 0) {
+    rows.unshift({ id: `S|${svcId}|${page - 1}`, title: '⬅️ Jours précédents', description: 'Revenir en arrière' });
+  }
+  if (first + slice.length < allRows.length) {
+    const nextTitle = allRows[first + slice.length].title;
+    rows.push({ id: `S|${svcId}|${page + 1}`, title: '➡️ Jours suivants', description: `À partir de ${nextTitle}` });
+  }
   return await callMeta(from, {
     type: 'interactive',
     interactive: {
       type: 'list',
       header: { type: 'text', text: c.title },
       body: { text: 'Quel jour t\'arrange ?' },
-      action: { button: 'Choisir le jour', sections: [{ title: page === 0 ? 'Prochains jours' : 'La semaine d\'après', rows }] },
+      action: { button: 'Choisir le jour', sections: [{ title: 'Prochains jours', rows }] },
     },
   });
 }

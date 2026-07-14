@@ -156,7 +156,7 @@ async function routeAction(from, name, actionId) {
   // OK|<svc>|<iso>|<h>   → création de la réservation
   const [op, ...args] = actionId.split('|');
   switch (op) {
-    case 'S':  return await sendDates(from, args[0]);
+    case 'S':  return await sendDates(from, args[0], args[1]);
     case 'D':  return await sendPeriods(from, args[0], args[1]);
     case 'P':  return await sendSlots(from, args[0], args[1], args[2]);
     case 'T':  return await sendRecap(from, args[0], args[1], args[2]);
@@ -447,33 +447,42 @@ async function sendReserverFlow(from) {
   });
 }
 
-async function sendDates(from, svcId) {
+async function sendDates(from, svcId, pageArg) {
   const c = CATALOG[svcId];
   if (!c) return await sendMainMenu(from, 'là');
-  const rows = [];
+  // 14 jours proposés (2 semaines). WhatsApp limite une liste à 10 lignes,
+  // donc pagination : page 0 = jours 1-9 + "Jours suivants", page 1 = jours 10-14 + retour.
+  const allRows = [];
   const now = new Date();
   // Aujourd'hui inclus seulement avant 18h ; sinon on démarre demain
   const startOffset = now.getUTCHours() < 18 ? 0 : 1;
-  for (let i = startOffset; rows.length < 8; i++) {
+  for (let i = startOffset; allRows.length < 14; i++) {
     const d = new Date(now.getTime() + i * 86400000);
     const iso = d.toISOString().slice(0, 10);
     const dow = d.getUTCDay();
     const label = `${JOURS[dow]} ${d.getUTCDate()} ${MOIS[d.getUTCMonth()]}`;
     const isToday = i === 0;
     const mardi = dow === 2 && svcId === 'rec';
-    rows.push({
+    allRows.push({
       id: `D|${svcId}|${iso}`,
       title: isToday ? 'Aujourd\'hui' : label,
       description: mardi ? '🔥 Tarif mardi : 15 000 F / h' : (isToday ? label : undefined),
     });
   }
+  const page = pageArg === '1' ? 1 : 0;
+  const rows = page === 0 ? allRows.slice(0, 9) : allRows.slice(9);
+  rows.push(
+    page === 0
+      ? { id: `S|${svcId}|1`, title: '➡️ Jours suivants', description: 'Voir la semaine d\'après' }
+      : { id: `S|${svcId}|0`, title: '⬅️ Jours précédents', description: 'Revenir aux premiers jours' }
+  );
   return await callMeta(from, {
     type: 'interactive',
     interactive: {
       type: 'list',
       header: { type: 'text', text: c.title },
       body: { text: 'Quel jour t\'arrange ?' },
-      action: { button: 'Choisir le jour', sections: [{ title: 'Prochains jours', rows }] },
+      action: { button: 'Choisir le jour', sections: [{ title: page === 0 ? 'Prochains jours' : 'La semaine d\'après', rows }] },
     },
   });
 }

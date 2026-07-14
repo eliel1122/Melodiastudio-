@@ -1,0 +1,7 @@
+{
+  "name": "melodia-studio",
+  "private": true,
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

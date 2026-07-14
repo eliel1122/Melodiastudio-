@@ -97,6 +97,17 @@ exports.handler = async (event) => {
         `🎵 https://tiktok.com/@melodia.studi0\n` +
         `👍 https://www.facebook.com/904016509455383`;
       await sendYCloudText(wa, msg).catch(() => {});
+
+      // QR "pass studio" (même cible que le reçu du site : Console Studio).
+      // Uniquement pour les réfs Melodia (le endpoint /api/qr les valide).
+      const ref = meta.ref || '';
+      if (/^MEL-/i.test(ref)) {
+        await sendYCloudImage(
+          wa,
+          `https://melodiastudio.pro/api/qr?ref=${encodeURIComponent(ref)}`,
+          `🎫 Ton pass studio — présente ce QR à l'accueil (réf ${ref})`
+        ).catch(() => {});
+      }
     }
 
     return { statusCode: 200, body: 'OK' };
@@ -129,4 +140,18 @@ async function sendYCloudText(to, body) {
       body: JSON.stringify({ from, to, type: 'text', text: { body } }),
     });
   } catch (e) { console.error('[paystack] ycloud send failed:', e.message); }
+}
+
+// Envoi image via YCloud (QR pass studio)
+async function sendYCloudImage(to, link, caption) {
+  const apiKey = process.env.YCLOUD_API_KEY;
+  const from = process.env.YCLOUD_FROM || '2250703387738';
+  if (!apiKey) return null;
+  try {
+    await fetch('https://api.ycloud.com/v2/whatsapp/messages', {
+      method: 'POST',
+      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to, type: 'image', image: { link, caption } }),
+    });
+  } catch (e) { console.error('[paystack] ycloud image failed:', e.message); }
 }

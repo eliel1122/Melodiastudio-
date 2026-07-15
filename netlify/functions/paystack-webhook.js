@@ -108,6 +108,10 @@ exports.handler = async (event) => {
           `🎫 Ton pass studio — présente ce QR à l'accueil (réf ${ref})`
         ).catch(() => {});
       }
+
+      // Carte de fidélité : +1 point par résa validée, envoyée après le QR.
+      // La Console saute alors le +1 de "Session terminée" (marqueur dans les Notes).
+      await sendFidelityAfterBooking(wa, meta, ids).catch((e) => console.error('[paystack] fidelite:', e.message));
     }
 
     return { statusCode: 200, body: 'OK' };
@@ -140,6 +144,83 @@ async function sendYCloudText(to, body) {
       body: JSON.stringify({ from, to, type: 'text', text: { body } }),
     });
   } catch (e) { console.error('[paystack] ycloud send failed:', e.message); }
+}
+
+// =====================================================
+// Fidélité à la validation de la résa : +1 point par résa payée,
+// carte envoyée juste après le QR, séance offerte tous les 5 points
+// (même barème que la Console). Les résas sont marquées "fidélité créditée"
+// pour que la Console ne re-crédite pas à "Session terminée".
+// =====================================================
+async function sendFidelityAfterBooking(wa, meta, ids) {
+  const name = meta.name || 'Artiste';
+
+  // 1. Client existant, sinon création automatique de la carte
+  let client = await findClientByPhone(wa);
+  let created = false;
+  if (!client) {
+    client = await airtable(`${airtableTable(TABLES.CLIENTS)}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        fields: { 'Nom complet': name, 'Téléphone': `+${wa}`, 'Tier': 'Bronze', 'Points actifs': 0, 'Séances totales': 0 },
+        typecast: true,
+      }),
+    }).catch(() => null);
+    if (!client?.id) return;
+    created = true;
+  }
+
+  // 2. +1 point par résa payée (5 points → 1 séance offerte, tier selon séances)
+  const f = client.fields || {};
+  const delta = Math.max(1, (ids || []).length);
+  let points = (f['Points actifs'] || 0) + delta;
+  const seances = (f['Séances totales'] || 0) + delta;
+  let offertes = f['Sessions offertes gagnées'] || 0;
+  let unlocked = false;
+  while (points >= 5) { points -= 5; offertes += 1; unlocked = true; }
+  const tier = seances >= 30 ? 'Platinum' : seances >= 15 ? 'Gold' : seances >= 5 ? 'Argent' : 'Bronze';
+  await airtable(`${airtableTable(TABLES.CLIENTS)}/${client.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      fields: { 'Tier': tier, 'Points actifs': points, 'Séances totales': seances, 'Sessions offertes gagnées': offertes },
+      typecast: true,
+    }),
+  });
+
+  // 3. Marqueur anti double-comptage sur chaque résa
+  for (const rid of ids || []) {
+    const r = await airtable(`${airtableTable(TABLES.RESERVATIONS)}/${rid}`, { method: 'GET' }).catch(() => null);
+    if (!r) continue;
+    await airtable(`${airtableTable(TABLES.RESERVATIONS)}/${rid}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ fields: { 'Notes': (r.fields?.['Notes'] || '') + '\n🎁 Fidélité créditée à la résa' }, typecast: true }),
+    }).catch(() => {});
+  }
+
+  // 4. La carte, envoyée après le QR
+  const remise = { Argent: 5, Gold: 10, Platinum: 15 }[tier] || 0;
+  const dispo = offertes - (f['Sessions offertes utilisées'] || 0);
+  await sendYCloudText(wa,
+    `🎁 *Ta carte fidélité Melodia*${created ? `\n🎉 Carte créée automatiquement — bienvenue dans la Melodia Family !` : ''}\n\n` +
+    `👤 ${f['Nom complet'] || name}\n` +
+    `⭐ *+${delta} point${delta > 1 ? 's' : ''}* pour ta résa → *${points}/5*\n` +
+    `🏅 Niveau : *${tier}*${remise ? ` (−${remise}% sur tes séances)` : ''}\n` +
+    (unlocked
+      ? `\n🎉 *FÉLICITATIONS !* Tu viens de débloquer une *SÉANCE OFFERTE* 🎁 — elle t'attend au studio${dispo > 1 ? ` (${dispo} dispo)` : ''}.\n`
+      : `\n💪 Encore *${5 - points} point${5 - points > 1 ? 's' : ''}* et ta prochaine séance est *OFFERTE*.\n`) +
+    `\n💳 Ta carte : https://melodiastudio.pro/pages/ma-carte.html`
+  );
+}
+
+// Même lookup que le bot : 8 derniers chiffres du numéro
+async function findClientByPhone(from) {
+  const last8 = from.replace(/\D/g, '').slice(-8);
+  const filter = `OR(FIND('${last8}', {Téléphone}), {Téléphone} = '+${from}')`;
+  const found = await airtable(
+    `${airtableTable(TABLES.CLIENTS)}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=1`,
+    { method: 'GET' }
+  ).catch(() => ({ records: [] }));
+  return found.records?.[0] || null;
 }
 
 // Envoi image via YCloud (QR pass studio)

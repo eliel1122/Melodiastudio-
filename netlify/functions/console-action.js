@@ -77,12 +77,15 @@ async function markDone(id) {
   });
 
   // Fidélité : +1 séance / +1 point (reset à 5 → 1 séance offerte)
+  // SAUF si la résa a déjà été créditée à la validation du paiement
+  // (marqueur posé par paystack-webhook — évite le double comptage)
   let fidelite = null;
+  const alreadyCredited = prev.includes('Fidélité créditée à la résa');
   const clientIds = r.fields?.['Client'];
-  if (Array.isArray(clientIds) && clientIds.length) {
+  if (!alreadyCredited && Array.isArray(clientIds) && clientIds.length) {
     fidelite = await bumpFidelity(clientIds[0], +1);
   }
-  return jsonResponse(200, { ok: true, statut: 'Terminée', fidelite });
+  return jsonResponse(200, { ok: true, statut: 'Terminée', fidelite, dejaCreditee: alreadyCredited });
 }
 
 async function fidelityDelta(clientId, delta) {

@@ -397,8 +397,8 @@ async function sendFidelite(from) {
 async function sendContact(from) {
   return await sendText(from,
     '*📞 NOUS CONTACTER*\n\n' +
-    '📱 WhatsApp 1 : +225 07 03 38 77 38\n' +
-    '📱 WhatsApp 2 : +225 07 18 41 51 31\n' +
+    // Numéro du studio uniquement — JAMAIS le numéro perso du Boss
+    '📱 WhatsApp : +225 07 03 38 77 38\n' +
     '✉️ Email : contact.melodiastud@gmail.com\n' +
     '📷 Instagram : @melodia.studi0\n' +
     '🎵 TikTok : @melodia.studi0\n' +

@@ -8,7 +8,7 @@
 
 const {
   airtable, airtableTable, TABLES,
-  paystackValidSignature, sendWhatsApp,
+  paystackValidSignature, sendWhatsApp, carteUrl,
 } = require('./_lib');
 
 exports.handler = async (event) => {
@@ -197,19 +197,15 @@ async function sendFidelityAfterBooking(wa, meta, ids) {
     }).catch(() => {});
   }
 
-  // 4. La carte, envoyée après le QR
-  const remise = { Argent: 5, Gold: 10, Platinum: 15 }[tier] || 0;
+  // 4. La carte en PNG, envoyée après le QR (rendue par /api/carte-fidelite)
   const dispo = offertes - (f['Sessions offertes utilisées'] || 0);
-  await sendYCloudText(wa,
-    `🎁 *Ta carte fidélité Melodia*${created ? `\n🎉 Carte créée automatiquement — bienvenue dans la Melodia Family !` : ''}\n\n` +
-    `👤 ${f['Nom complet'] || name}\n` +
-    `⭐ *+${delta} point${delta > 1 ? 's' : ''}* pour ta résa → *${points}/5*\n` +
-    `🏅 Niveau : *${tier}*${remise ? ` (−${remise}% sur tes séances)` : ''}\n` +
+  const caption =
+    `🎁 Ta carte fidélité Melodia${created ? ' — bienvenue dans la Melodia Family 🎉' : ''}\n` +
+    `⭐ +${delta} point${delta > 1 ? 's' : ''} pour ta résa !\n` +
     (unlocked
-      ? `\n🎉 *FÉLICITATIONS !* Tu viens de débloquer une *SÉANCE OFFERTE* 🎁 — elle t'attend au studio${dispo > 1 ? ` (${dispo} dispo)` : ''}.\n`
-      : `\n💪 Encore *${5 - points} point${5 - points > 1 ? 's' : ''}* et ta prochaine séance est *OFFERTE*.\n`) +
-    `\n💳 Ta carte : https://melodiastudio.pro/pages/ma-carte.html`
-  );
+      ? `🎉 FÉLICITATIONS : tu viens de débloquer une SÉANCE OFFERTE${dispo > 1 ? ` (${dispo} dispo)` : ''} — elle t'attend au studio.`
+      : `💪 Encore ${5 - points} point${5 - points > 1 ? 's' : ''} et ta prochaine séance est OFFERTE.`);
+  await sendYCloudImage(wa, carteUrl(wa), caption);
 }
 
 // Même lookup que le bot : 8 derniers chiffres du numéro

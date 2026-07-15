@@ -191,6 +191,18 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Jeton signé pour l'URL de la carte fidélité PNG (empêche de consulter
+// la carte de n'importe qui en devinant le numéro). Secret = WHATSAPP_VERIFY_TOKEN.
+function carteToken(phone) {
+  const crypto = require('crypto');
+  const secret = process.env.WHATSAPP_VERIFY_TOKEN || 'melodia';
+  return crypto.createHmac('sha256', secret).update(String(phone)).digest('hex').slice(0, 16);
+}
+
+function carteUrl(phone) {
+  return `https://melodiastudio.pro/api/carte-fidelite?phone=${encodeURIComponent(phone)}&t=${carteToken(phone)}`;
+}
+
 module.exports = {
   AIRTABLE_API_KEY,
   AIRTABLE_BASE_ID,
@@ -209,4 +221,6 @@ module.exports = {
   depositFor,
   paystackInit,
   paystackValidSignature,
+  carteToken,
+  carteUrl,
 };

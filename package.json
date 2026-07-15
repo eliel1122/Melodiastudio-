@@ -2,6 +2,8 @@
   "name": "melodia-studio",
   "private": true,
   "dependencies": {
-    "qrcode": "^1.5.4"
+    "@resvg/resvg-js": "^2.6.2",
+    "qrcode": "^1.5.4",
+    "satori": "^0.28.0"
   }
 }

@@ -14,7 +14,7 @@
 const crypto = require('crypto');
 const {
   airtable, airtableTable, TABLES, mapService, sendWhatsApp,
-  PRICES, TUESDAY_HOUR_PRICE, depositFor,
+  PRICES, TUESDAY_HOUR_PRICE, depositFor, carteUrl,
 } = require('./_lib');
 
 const META_API = 'https://graph.facebook.com/v21.0';
@@ -235,21 +235,20 @@ async function sendMaCarte(from, name) {
     });
   }
   const f = client.fields || {};
-  const tier = f['Tier'] || 'Bronze';
   const pts = f['Points actifs'] || 0;
-  const seances = f['Séances totales'] || 0;
-  const remise = { Argent: 5, Gold: 10, Platinum: 15 }[tier] || 0;
   const offertes = (f['Sessions offertes gagnées'] || 0) - (f['Sessions offertes utilisées'] || 0);
-  return await sendText(from,
-    `🎁 *Ta carte fidélité*\n\n` +
-    `👤 ${f['Nom complet'] || name}\n` +
-    `🏅 Niveau : *${tier}*${remise ? ` (−${remise}%)` : ''}\n` +
-    `⭐ Points : *${pts}/5*\n` +
-    `🎬 Séances : *${seances}*\n` +
-    (offertes > 0 ? `🎉 Séances offertes dispo : *${offertes}*\n` : '') +
-    `\nEncore ${Math.max(0, 5 - pts)} point(s) pour une séance offerte 💪\n` +
-    `Ta carte : https://melodiastudio.pro/pages/ma-carte.html`
-  );
+  // Carte en PNG (rendue par /api/carte-fidelite), le détail est dessus
+  return await callMeta(from, {
+    type: 'image',
+    image: {
+      link: carteUrl(from),
+      caption:
+        `🎁 Ta carte fidélité Melodia\n` +
+        (offertes > 0
+          ? `🎉 ${offertes} séance${offertes > 1 ? 's' : ''} offerte${offertes > 1 ? 's' : ''} à utiliser — présente ta carte à l'accueil !`
+          : `💪 Encore ${Math.max(0, 5 - pts)} point(s) et ta prochaine séance est OFFERTE.`),
+    },
+  });
 }
 
 async function creerCarte(from, name) {

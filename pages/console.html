@@ -8,6 +8,7 @@
   <meta name="robots" content="noindex" />
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root { --bg:#08080C; --card:#0e0e16; --fg:#F5F5F7; --dim:#A8A8B5; --low:#5a5a68; --accent:#1E90FF; --danger:#FF4D5E; --ok:#22c55e; --line:rgba(255,255,255,.09); }
     * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
@@ -28,8 +29,8 @@
     .btn:disabled { opacity:.5; }
     .row { display:flex; gap:10px; }
     .row > * { flex:1; }
-    .tabs { display:flex; gap:8px; margin-top:14px; }
-    .tab { flex:1; text-align:center; padding:11px; border-radius:12px; border:1px solid var(--line); font-size:14px; font-weight:600; color:var(--dim); cursor:pointer; }
+    .tabs { display:flex; gap:6px; margin-top:14px; }
+    .tab { flex:1; text-align:center; padding:10px 4px; border-radius:11px; border:1px solid var(--line); font-size:12.5px; font-weight:600; color:var(--dim); cursor:pointer; white-space:nowrap; }
     .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
     .kv { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:14px; }
     .kv:last-child { border-bottom:none; }
@@ -69,6 +70,23 @@
     .st-btn.danger { color:var(--danger); border-color:rgba(255,77,94,.35); }
     .st-btn:disabled { opacity:.5; }
     .list-empty { text-align:center; color:var(--dim); font-size:14px; padding:26px 0; }
+    /* ---- Dashboard ---- */
+    .kpis { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+    .kpi { background:#101019; border:1px solid var(--line); border-radius:14px; padding:14px; }
+    .kpi.hero { grid-column:1 / -1; background:linear-gradient(135deg, rgba(30,144,255,.16), rgba(255,77,94,.08)); border-color:rgba(30,144,255,.3); }
+    .kpi .k-lbl { font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); }
+    .kpi .k-val { font-family:Anton,sans-serif; font-size:30px; margin-top:6px; letter-spacing:.5px; }
+    .kpi.hero .k-val { font-size:44px; color:var(--accent); }
+    .kpi .k-sub { font-size:11px; color:var(--low); margin-top:2px; }
+    .dash-card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-top:12px; }
+    .dash-card h3 { font-family:Anton,sans-serif; font-size:16px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:12px; color:var(--fg); font-weight:400; }
+    .chart-box { position:relative; height:200px; }
+    .cli-row { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14px; }
+    .cli-row:last-child { border-bottom:none; }
+    .cli-rank { font-family:Anton,sans-serif; font-size:15px; color:var(--accent); width:22px; }
+    .cli-name { flex:1; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cli-ca { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--ok); }
+    .cli-cnt { font-size:11px; color:var(--dim); }
   </style>
 </head>
 <body>
@@ -95,6 +113,7 @@
         <div class="tab active" data-tab="scan">📷 Scan</div>
         <div class="tab" data-tab="search">🔎 Recherche</div>
         <div class="tab" data-tab="list">📋 Résas</div>
+        <div class="tab" data-tab="dash">📊 Stats</div>
       </div>
 
       <div id="tab-scan" class="card">
@@ -125,6 +144,14 @@
           <div class="chip" data-st="Annulée">Annulée</div>
         </div>
         <div id="list-body"></div>
+      </div>
+
+      <div id="tab-dash" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+          <p class="eyebrow">Activité du studio · live</p>
+          <button class="btn ghost" id="dash-refresh" style="width:auto;padding:8px 14px;font-size:13px;">↻</button>
+        </div>
+        <div id="dash-body"></div>
       </div>
 
       <div id="result"></div>
@@ -182,8 +209,10 @@
       $('tab-scan').style.display = tab === 'scan' ? 'block' : 'none';
       $('tab-search').style.display = tab === 'search' ? 'block' : 'none';
       $('tab-list').style.display = tab === 'list' ? 'block' : 'none';
+      $('tab-dash').style.display = tab === 'dash' ? 'block' : 'none';
       if (tab === 'scan') startScanner(); else stopScanner();
       if (tab === 'list') loadList();
+      if (tab === 'dash') loadDash();
     }));
 
     // ---- Scanner ----
@@ -347,6 +376,81 @@
       const d = new Date(iso + 'T00:00:00');
       if (isNaN(d)) return iso;
       return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+
+    // ---- Dashboard ----
+    let dashData = null;
+    const charts = {};
+    $('dash-refresh').addEventListener('click', () => loadDash(true));
+
+    async function loadDash(force) {
+      if (dashData && !force) return;
+      $('dash-body').innerHTML = '<div class="list-empty">Chargement de l\'activité…</div>';
+      try {
+        dashData = await api('console-dashboard', {});
+        renderDash();
+      } catch (e) { $('dash-body').innerHTML = ''; showErr(e.message); }
+    }
+
+    function kf(n) { const v = Number(n) || 0; return v >= 1000000 ? (v / 1000000).toFixed(v % 1000000 ? 1 : 0) + 'M' : v >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0) + 'k' : String(v); }
+
+    function renderDash() {
+      const d = dashData, k = d.kpis;
+      const objectif = 2500000;
+      const pct = Math.min(100, Math.round(k.caMonth / objectif * 100));
+      $('dash-body').innerHTML = `
+        <div class="kpis">
+          <div class="kpi hero">
+            <div class="k-lbl">CA encaissé · ce mois</div>
+            <div class="k-val">${kf(k.caMonth)} F</div>
+            <div class="k-sub">${pct}% de l'objectif 2,5M · ${k.resaMonth} résa${k.resaMonth > 1 ? 's' : ''}</div>
+          </div>
+          <div class="kpi"><div class="k-lbl">Cette semaine</div><div class="k-val">${kf(k.caWeek)} F</div></div>
+          <div class="kpi"><div class="k-lbl">Aujourd'hui</div><div class="k-val">${kf(k.caToday)} F</div></div>
+          <div class="kpi"><div class="k-lbl">Panier moyen</div><div class="k-val">${kf(k.panierMoyen)} F</div></div>
+          <div class="kpi"><div class="k-lbl">Sessions à venir</div><div class="k-val">${k.aVenir}</div></div>
+        </div>
+
+        <div class="dash-card"><h3>📈 CA · 30 derniers jours</h3><div class="chart-box"><canvas id="c-daily"></canvas></div></div>
+        <div class="dash-card"><h3>🎙️ Services les plus demandés</h3><div class="chart-box"><canvas id="c-serv"></canvas></div></div>
+        <div class="dash-card"><h3>📅 Jours les plus chargés</h3><div class="chart-box"><canvas id="c-wday"></canvas></div></div>
+        <div class="dash-card"><h3>🏆 Meilleurs clients</h3>
+          ${d.topClients.length ? d.topClients.map((c, i) => `
+            <div class="cli-row">
+              <span class="cli-rank">${i + 1}</span>
+              <span class="cli-name">${c.nom}</span>
+              <span style="text-align:right"><span class="cli-ca">${kf(c.ca)} F</span><br><span class="cli-cnt">${c.count} session${c.count > 1 ? 's' : ''}</span></span>
+            </div>`).join('') : '<div class="list-empty">Pas encore de données.</div>'}
+        </div>`;
+      drawCharts();
+    }
+
+    const AX = { grid: { color: 'rgba(255,255,255,.06)' }, ticks: { color: '#8a8a99', font: { size: 10 } } };
+    function drawCharts() {
+      Object.values(charts).forEach(c => c && c.destroy());
+      const d = dashData;
+      // CA 30j (ligne)
+      charts.daily = new Chart($('c-daily'), {
+        type: 'line',
+        data: {
+          labels: d.daily.map(x => x.date.slice(8) + '/' + x.date.slice(5, 7)),
+          datasets: [{ data: d.daily.map(x => x.ca), borderColor: '#1E90FF', backgroundColor: 'rgba(30,144,255,.15)', fill: true, tension: .35, pointRadius: 0, borderWidth: 2 }],
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => kf(c.raw) + ' F' } } }, scales: { x: { ...AX, ticks: { ...AX.ticks, maxTicksLimit: 6 } }, y: { ...AX, ticks: { ...AX.ticks, callback: v => kf(v) } } } },
+      });
+      // Services (doughnut par CA)
+      const sv = d.services.slice(0, 6);
+      charts.serv = new Chart($('c-serv'), {
+        type: 'doughnut',
+        data: { labels: sv.map(s => s.label), datasets: [{ data: sv.map(s => s.ca), backgroundColor: ['#1E90FF', '#FF4D5E', '#22c55e', '#eab308', '#a855f7', '#64748b'], borderColor: '#0e0e16', borderWidth: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '58%', plugins: { legend: { position: 'right', labels: { color: '#c8c8d0', font: { size: 11 }, boxWidth: 12, padding: 8 } }, tooltip: { callbacks: { label: c => c.label + ' : ' + kf(c.raw) + ' F' } } } },
+      });
+      // Jours chargés (barres)
+      charts.wday = new Chart($('c-wday'), {
+        type: 'bar',
+        data: { labels: d.weekday.map(w => w.jour), datasets: [{ data: d.weekday.map(w => w.count), backgroundColor: '#1E90FF', borderRadius: 6 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.raw + ' résa' + (c.raw > 1 ? 's' : '') } } }, scales: { x: AX, y: { ...AX, ticks: { ...AX.ticks, precision: 0 }, beginAtZero: true } } },
+      });
     }
 
     function bindActions() {

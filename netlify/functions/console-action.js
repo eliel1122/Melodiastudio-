@@ -58,6 +58,18 @@ async function patchResilient(path, fields) {
 // sans effet de bord fidélité (le crédit de points reste sur le bouton
 // "Session terminée" du détail réservation, pour éviter tout double comptage).
 const STATUSES = ['En attente', 'En attente paiement', 'Confirmée', 'Soldée', 'Terminée', 'Annulée'];
+// Marqueur horodaté de clôture (Terminée/Annulée) → sert au masquage console
+// après 20 min et à la suppression des annulées sans acompte.
+const CLOSE_RE = /\[CLÔTURE:[^\]]+\]/g;
+function closeNote(statut, prev) {
+  let notes = (prev || '').replace(CLOSE_RE, '').trimEnd();
+  notes += `\n✏️ Statut → ${statut} (console)`;
+  if (statut === 'Terminée' || statut === 'Annulée') {
+    notes += `\n[CLÔTURE:${new Date().toISOString()}]`;
+  }
+  return notes;
+}
+
 async function setStatus(id, statut) {
   if (!id) return jsonResponse(400, { error: 'reservationId requis' });
   if (!STATUSES.includes(statut)) return jsonResponse(400, { error: 'Statut invalide' });
@@ -65,7 +77,7 @@ async function setStatus(id, statut) {
   const prev = r.fields?.['Notes'] || '';
   await patchResilient(`${airtableTable(TABLES.RESERVATIONS)}/${id}`, {
     'Statut': statut,
-    'Notes': prev + `\n✏️ Statut → ${statut} (console)`,
+    'Notes': closeNote(statut, prev),
   });
   return jsonResponse(200, { ok: true, statut });
 }
@@ -90,7 +102,7 @@ async function markDone(id) {
   const prev = r.fields?.['Notes'] || '';
   await patchResilient(`${airtableTable(TABLES.RESERVATIONS)}/${id}`, {
     'Statut': 'Terminée',
-    'Notes': prev + `\n🎬 Session terminée (console)`,
+    'Notes': closeNote('Terminée', prev).replace('✏️ Statut → Terminée (console)', '🎬 Session terminée (console)'),
   });
 
   // Fidélité : +1 séance / +1 point (reset à 5 → 1 séance offerte)

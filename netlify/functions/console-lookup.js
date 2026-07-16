@@ -27,7 +27,23 @@ exports.handler = async (event) => {
         `${airtableTable(TABLES.RESERVATIONS)}?pageSize=80&sort%5B0%5D%5Bfield%5D=Date&sort%5B0%5D%5Bdirection%5D=desc`,
         { method: 'GET' }
       );
-      return jsonResponse(200, { ok: true, kind: 'list', reservations: (found.records || []).map(mapResa) });
+      const now = Date.now();
+      const visible = [];
+      for (const rec of found.records || []) {
+        const f = rec.fields || {};
+        const statut = f['Statut'];
+        const closedAge = closureAgeMs(f['Notes'] || '', now);
+        const closedOld = closedAge != null && closedAge > TWENTY_MIN;
+        // Suppression Airtable : Annulée SANS acompte, 20 min après clôture
+        if (closedOld && statut === 'Annulée' && !f['Acompte payé']) {
+          airtable(`${airtableTable(TABLES.RESERVATIONS)}/${rec.id}`, { method: 'DELETE' }).catch(() => {});
+          continue; // exclue de la liste
+        }
+        // Masquage console : Terminée / Annulée, 20 min après clôture
+        if (closedOld && (statut === 'Terminée' || statut === 'Annulée')) continue;
+        visible.push(mapResa(rec));
+      }
+      return jsonResponse(200, { ok: true, kind: 'list', reservations: visible });
     }
 
     // 1. Réservation par référence
@@ -66,8 +82,17 @@ exports.handler = async (event) => {
 };
 
 // ---------- Helpers ----------
+const TWENTY_MIN = 20 * 60 * 1000;
 function isRef(s) { return /^MEL-/i.test(s); }
 function esc(s) { return (s || '').replace(/'/g, "\\'"); }
+
+// Âge (ms) depuis le marqueur [CLÔTURE:<ISO>] dans les Notes, sinon null.
+function closureAgeMs(notes, now) {
+  const m = /\[CLÔTURE:([^\]]+)\]/.exec(notes || '');
+  if (!m) return null;
+  const t = Date.parse(m[1]);
+  return isNaN(t) ? null : (now - t);
+}
 
 function one(v) { return Array.isArray(v) ? v[0] : v; } // lookups Airtable = tableaux
 

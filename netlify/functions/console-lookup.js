@@ -46,6 +46,20 @@ exports.handler = async (event) => {
       return jsonResponse(200, { ok: true, kind: 'list', reservations: visible });
     }
 
+    // 0bis. Liste des clients (onglet Clients)
+    if (p.mode === 'clients') {
+      const out = [];
+      let offset = '';
+      for (let i = 0; i < 10; i++) { // 10 × 100 = 1000 max
+        const url = `${airtableTable(TABLES.CLIENTS)}?pageSize=100${offset ? `&offset=${offset}` : ''}`;
+        const page = await airtable(url, { method: 'GET' });
+        out.push(...(page.records || []));
+        if (!page.offset) break;
+        offset = page.offset;
+      }
+      return jsonResponse(200, { ok: true, kind: 'clients', clients: out.map(mapClient) });
+    }
+
     // 1. Réservation par référence
     if (ref) {
       const found = await airtable(

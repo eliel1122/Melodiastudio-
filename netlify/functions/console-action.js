@@ -4,7 +4,10 @@
 // ajuster les points, utiliser une séance offerte.
 // =====================================================
 
-const { airtable, airtableTable, TABLES, jsonResponse, preflight } = require('./_lib');
+const {
+  airtable, airtableTable, TABLES, jsonResponse, preflight,
+  mapService, PRICES, TUESDAY_HOUR_PRICE, depositFor,
+} = require('./_lib');
 
 const PIN = process.env.CONSOLE_PIN || '2024';
 
@@ -18,6 +21,7 @@ exports.handler = async (event) => {
 
   try {
     switch (p.action) {
+      case 'create_resa':    return await createResa(p);
       case 'mark_paid':      return await markPaid(p.reservationId);
       case 'mark_done':      return await markDone(p.reservationId);
       case 'set_status':     return await setStatus(p.reservationId, p.statut);
@@ -52,6 +56,87 @@ async function patchResilient(path, fields) {
       throw e;
     }
   }
+}
+
+// Ajout d'une réservation « client direct » (walk-in) depuis la console :
+// génère une réf MEL-, statut Confirmée (acompte) ou Soldée (payé total),
+// crédite +1 point fidélité (comme le flux en ligne) → compte dans le CA.
+function generateRef() {
+  const d = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+  const r = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `MEL-${d}-${r}`;
+}
+function isTuesday(iso) { return new Date(iso + 'T00:00:00Z').getUTCDay() === 2; }
+function fullPriceFor(id, date, duree) {
+  if (id === 'rec' || id === 'rec-hour') {
+    return (isTuesday(date) ? TUESDAY_HOUR_PRICE : 25000) * (Number(duree) || 1);
+  }
+  return PRICES[id] || 0;
+}
+async function findOrCreateClientConsole(nom, phone) {
+  const safe = (s) => (s || '').replace(/'/g, "\\'");
+  const digits = (phone || '').replace(/\D/g, '');
+  if (digits.length >= 8) {
+    const filter = `OR(FIND('${safe(digits.slice(-8))}', {Téléphone}), {Téléphone} = '+${digits}')`;
+    const found = await airtable(
+      `${airtableTable(TABLES.CLIENTS)}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=1`,
+      { method: 'GET' }
+    ).catch(() => ({ records: [] }));
+    if (found.records?.length) return found.records[0].id;
+  }
+  const [prenom, ...rest] = (nom || '').trim().split(' ');
+  const created = await airtable(`${airtableTable(TABLES.CLIENTS)}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fields: {
+        'Nom complet': nom || 'Client', 'Prénom': prenom || '', 'Nom': rest.join(' ') || '',
+        ...(digits ? { 'Téléphone': '+' + digits } : {}),
+        'Tier': 'Bronze', 'Points actifs': 0, 'Séances totales': 0,
+      },
+      typecast: true,
+    }),
+  }).catch(() => null);
+  return created?.id || null;
+}
+
+async function createResa(p) {
+  const serviceId = p.serviceId;
+  const date = p.date, heure = p.heure;
+  if (!serviceId || !date || !heure) return jsonResponse(400, { error: 'Service, date et heure requis' });
+  const label = mapService(serviceId);
+  if (!label) return jsonResponse(400, { error: 'Service inconnu' });
+
+  const price = fullPriceFor(serviceId, date, p.duree);
+  const acompte = Math.min(depositFor(serviceId), price || depositFor(serviceId));
+  const choice = p.paiement === 'total' ? 'total' : 'acompte';
+  const statut = choice === 'total' ? 'Soldée' : 'Confirmée';
+  const paid = choice === 'total' ? price : acompte;
+  const solde = choice === 'total' ? 0 : Math.max(0, price - acompte);
+  const ref = generateRef();
+
+  const clientId = await findOrCreateClientConsole(p.nom, p.phone);
+
+  const notes = [
+    `🎫 Résa ajoutée en console (client direct)`,
+    `💳 ${choice === 'total' ? `Payé en totalité ${paid} F` : `Acompte ${paid} F`}${solde ? ` · solde ${solde} F` : ''}`,
+    `🎁 Fidélité créditée à la résa`,
+  ].join('\n');
+
+  const rec = await airtable(`${airtableTable(TABLES.RESERVATIONS)}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fields: {
+        'Référence': ref, 'Date': date, 'Heure début': heure, 'Durée (h)': Number(p.duree) || 1,
+        'Service': label, 'Statut': statut, 'Acompte payé': true, 'Notes': notes,
+        ...(clientId ? { 'Client': [clientId] } : {}),
+      },
+      typecast: true,
+    }),
+  });
+
+  let fidelite = null;
+  if (clientId) fidelite = await bumpFidelity(clientId, +1);
+  return jsonResponse(200, { ok: true, ref, statut, prix: price, fidelite });
 }
 
 // Changement de statut « à la Airtable » : édition simple du champ Statut,

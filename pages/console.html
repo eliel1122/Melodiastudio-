@@ -29,8 +29,9 @@
     .btn:disabled { opacity:.5; }
     .row { display:flex; gap:10px; }
     .row > * { flex:1; }
-    .tabs { display:flex; gap:6px; margin-top:14px; }
-    .tab { flex:1; text-align:center; padding:10px 4px; border-radius:11px; border:1px solid var(--line); font-size:12.5px; font-weight:600; color:var(--dim); cursor:pointer; white-space:nowrap; }
+    .tabs { display:flex; gap:6px; margin-top:14px; overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none; }
+    .tabs::-webkit-scrollbar { display:none; }
+    .tab { flex:0 0 auto; text-align:center; padding:10px 14px; border-radius:11px; border:1px solid var(--line); font-size:12.5px; font-weight:600; color:var(--dim); cursor:pointer; white-space:nowrap; }
     .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
     .kv { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:14px; }
     .kv:last-child { border-bottom:none; }
@@ -87,6 +88,17 @@
     .cli-name { flex:1; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .cli-ca { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--ok); }
     .cli-cnt { font-size:11px; color:var(--dim); }
+    select { width:100%; background:#141420; border:1px solid var(--line); border-radius:12px; color:var(--fg); font-size:16px; padding:14px; outline:none; -webkit-appearance:none; appearance:none; }
+    select:focus { border-color:var(--accent); }
+    .pay-opt.sel { background:var(--accent); color:#fff; border-color:var(--accent); }
+    /* Clients */
+    .cliitem { display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--line); cursor:pointer; }
+    .cliitem:active { background:#15151f; }
+    .cli-av { width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:Anton,sans-serif; font-size:17px; flex:0 0 auto; }
+    .cli-info { flex:1; min-width:0; }
+    .cli-nom { font-weight:600; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cli-meta { font-size:12px; color:var(--dim); margin-top:2px; }
+    .cli-badge { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:3px 9px; border-radius:12px; border:1px solid var(--line); white-space:nowrap; }
   </style>
 </head>
 <body>
@@ -113,6 +125,7 @@
         <div class="tab active" data-tab="scan">📷 Scan</div>
         <div class="tab" data-tab="search">🔎 Recherche</div>
         <div class="tab" data-tab="list">📋 Résas</div>
+        <div class="tab" data-tab="clients">👥 Clients</div>
         <div class="tab" data-tab="dash">📊 Stats</div>
       </div>
 
@@ -130,9 +143,45 @@
       </div>
 
       <div id="tab-list" class="card" style="display:none;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <p class="eyebrow">Réservations · live</p>
-          <button class="btn ghost" id="list-refresh" style="width:auto;padding:8px 14px;font-size:13px;">↻ Rafraîchir</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn" id="add-open" style="width:auto;padding:8px 14px;font-size:13px;">+ Ajouter</button>
+            <button class="btn ghost" id="list-refresh" style="width:auto;padding:8px 12px;font-size:13px;">↻</button>
+          </div>
+        </div>
+
+        <!-- Formulaire ajout résa client direct -->
+        <div id="add-form" style="display:none;border:1px solid rgba(30,144,255,.3);border-radius:14px;padding:14px;margin-top:12px;background:rgba(30,144,255,.05);">
+          <p class="eyebrow" style="margin-bottom:10px;">Nouvelle résa · client direct</p>
+          <label>Nom du client</label>
+          <input id="f-nom" type="text" placeholder="Ex : Serge B." />
+          <div style="height:10px;"></div>
+          <label>Téléphone (facultatif)</label>
+          <input id="f-tel" type="tel" placeholder="07…" />
+          <div style="height:10px;"></div>
+          <label>Service</label>
+          <select id="f-svc"></select>
+          <div id="f-duree-wrap" style="margin-top:10px;display:none;">
+            <label>Durée (heures)</label>
+            <input id="f-duree" type="number" min="1" value="1" />
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div><label>Date</label><input id="f-date" type="date" /></div>
+            <div><label>Heure</label><input id="f-heure" type="text" placeholder="20h" /></div>
+          </div>
+          <div style="height:12px;"></div>
+          <label>Paiement</label>
+          <div class="row" id="f-pay">
+            <button type="button" class="btn ghost pay-opt" data-pay="acompte">Acompte</button>
+            <button type="button" class="btn ghost pay-opt" data-pay="total">Payé total</button>
+          </div>
+          <div id="f-price" class="muted" style="margin-top:10px;text-align:center;"></div>
+          <div style="height:12px;"></div>
+          <div class="row">
+            <button class="btn ok" id="f-submit">✅ Créer la résa</button>
+            <button class="btn ghost" id="add-cancel">Annuler</button>
+          </div>
         </div>
         <input id="list-search" type="text" placeholder="Filtrer : nom, réf, numéro…" style="margin-top:12px;" />
         <div class="filters" id="list-filters">
@@ -144,6 +193,16 @@
           <div class="chip" data-st="Annulée">Annulée</div>
         </div>
         <div id="list-body"></div>
+      </div>
+
+      <div id="tab-clients" class="card" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <p class="eyebrow">Clients · fidélité</p>
+          <button class="btn ghost" id="cli-refresh" style="width:auto;padding:8px 12px;font-size:13px;">↻</button>
+        </div>
+        <input id="cli-search" type="text" placeholder="Chercher un client : nom, numéro…" style="margin-top:12px;" />
+        <div id="cli-count" class="muted" style="margin-top:10px;"></div>
+        <div id="cli-body"></div>
       </div>
 
       <div id="tab-dash" style="display:none;">
@@ -209,9 +268,11 @@
       $('tab-scan').style.display = tab === 'scan' ? 'block' : 'none';
       $('tab-search').style.display = tab === 'search' ? 'block' : 'none';
       $('tab-list').style.display = tab === 'list' ? 'block' : 'none';
+      $('tab-clients').style.display = tab === 'clients' ? 'block' : 'none';
       $('tab-dash').style.display = tab === 'dash' ? 'block' : 'none';
       if (tab === 'scan') startScanner(); else stopScanner();
       if (tab === 'list') loadList();
+      if (tab === 'clients') loadClients();
       if (tab === 'dash') loadDash();
     }));
 
@@ -376,6 +437,117 @@
       const d = new Date(iso + 'T00:00:00');
       if (isNaN(d)) return iso;
       return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+
+    // ---- Ajout résa (client direct) ----
+    const SVC = [
+      { id: 'rec', label: "Studio à l'heure", price: 25000, hourly: true },
+      { id: 'mix', label: 'Mix', price: 150000 },
+      { id: 'master', label: 'Mastering', price: 75000 },
+      { id: 'prod', label: 'Production beat', price: 100000 },
+      { id: 'vo', label: 'Voice-over', price: 40000 },
+      { id: 'da', label: 'Direction artistique', price: 30000 },
+      { id: 'clip', label: 'Tournage clip', price: 30000 },
+      { id: 'loc-studio', label: 'Location studio', price: 35000 },
+      { id: 'pack-silver', label: 'Pack Silver', price: 40000 },
+      { id: 'pack-gold', label: 'Pack Gold', price: 180000 },
+      { id: 'pack-platinium', label: 'Pack Platinium', price: 280000 },
+    ];
+    let fPay = 'acompte';
+    (function initAddForm() {
+      $('f-svc').innerHTML = SVC.map(s => `<option value="${s.id}">${s.label} — ${fmtF(s.price)}</option>`).join('');
+      $('add-open').addEventListener('click', () => { $('add-form').style.display = 'block'; $('add-open').style.display = 'none'; refreshPrice(); });
+      $('add-cancel').addEventListener('click', closeAddForm);
+      $('f-svc').addEventListener('change', () => { const s = SVC.find(x => x.id === $('f-svc').value); $('f-duree-wrap').style.display = s && s.hourly ? 'block' : 'none'; refreshPrice(); });
+      $('f-duree').addEventListener('input', refreshPrice);
+      $('f-date').addEventListener('change', refreshPrice);
+      document.querySelectorAll('.pay-opt').forEach(b => b.addEventListener('click', () => {
+        fPay = b.dataset.pay;
+        document.querySelectorAll('.pay-opt').forEach(x => x.classList.remove('sel'));
+        b.classList.add('sel'); refreshPrice();
+      }));
+      document.querySelector('.pay-opt[data-pay="acompte"]').classList.add('sel');
+      $('f-submit').addEventListener('click', submitResa);
+    })();
+
+    function closeAddForm() { $('add-form').style.display = 'none'; $('add-open').style.display = 'block'; }
+    function priceForForm() {
+      const s = SVC.find(x => x.id === $('f-svc').value);
+      if (!s) return 0;
+      if (s.hourly) {
+        const d = $('f-date').value;
+        const tue = d && new Date(d + 'T00:00:00').getDay() === 2;
+        return (tue ? 15000 : 25000) * (parseInt($('f-duree').value, 10) || 1);
+      }
+      return s.price;
+    }
+    function refreshPrice() {
+      const price = priceForForm();
+      const acompte = Math.min(2500, price);
+      $('f-price').innerHTML = fPay === 'total'
+        ? `Total à encaisser : <b style="color:var(--fg)">${fmtF(price)}</b>`
+        : `Acompte : <b style="color:var(--fg)">${fmtF(acompte)}</b> · solde ${fmtF(price - acompte)}`;
+    }
+    async function submitResa() {
+      const nom = $('f-nom').value.trim();
+      const serviceId = $('f-svc').value;
+      const date = $('f-date').value;
+      const heure = $('f-heure').value.trim();
+      if (!nom) { showErr('Nom du client requis'); return; }
+      if (!date || !heure) { showErr('Date et heure requises'); return; }
+      $('f-submit').disabled = true;
+      try {
+        const d = await api('console-action', {
+          action: 'create_resa', nom, phone: $('f-tel').value.trim(),
+          serviceId, date, heure, duree: $('f-duree').value, paiement: fPay,
+        });
+        toast('Résa créée ✅ ' + d.ref);
+        $('f-nom').value = ''; $('f-tel').value = ''; $('f-heure').value = '';
+        closeAddForm();
+        dashData = null; // le dashboard se rechargera avec la nouvelle résa
+        loadList(true);
+      } catch (e) { showErr(e.message); } finally { $('f-submit').disabled = false; }
+    }
+
+    // ---- Onglet Clients ----
+    let allClients = [];
+    const TIER_COLOR = { Bronze: '#CD7F32', Argent: '#B8C5D6', Gold: '#E5B544', Platinum: '#E5E4E2' };
+    $('cli-refresh').addEventListener('click', () => loadClients(true));
+    $('cli-search').addEventListener('input', renderClients);
+    async function loadClients(force) {
+      if (allClients.length && !force) { renderClients(); return; }
+      $('cli-body').innerHTML = '<div class="list-empty">Chargement…</div>';
+      try {
+        const d = await api('console-lookup', { mode: 'clients' });
+        allClients = (d.clients || []).sort((a, b) => (b.seances || 0) - (a.seances || 0));
+        renderClients();
+      } catch (e) { $('cli-body').innerHTML = ''; showErr(e.message); }
+    }
+    function renderClients() {
+      const q = norm($('cli-search').value.trim());
+      const qd = $('cli-search').value.replace(/\D/g, '');
+      let rows = allClients;
+      if (q) rows = rows.filter(c => norm(c.nom).includes(q) || (qd && (c.phone || '').replace(/\D/g, '').includes(qd)));
+      $('cli-count').textContent = `${rows.length} client${rows.length > 1 ? 's' : ''}`;
+      if (!rows.length) { $('cli-body').innerHTML = '<div class="list-empty">Aucun client.</div>'; return; }
+      $('cli-body').innerHTML = rows.map(c => {
+        const col = TIER_COLOR[c.tier] || '#1E90FF';
+        const dispo = (c.offertesGagnees || 0) - (c.offertesUtilisees || 0);
+        const initiale = (c.nom || 'C').trim().charAt(0).toUpperCase();
+        return `<div class="cliitem" data-phone="${c.phone || ''}" data-nom="${(c.nom || '').replace(/"/g, '')}">
+          <div class="cli-av" style="background:${col}22;color:${col};border:1px solid ${col}55;">${initiale}</div>
+          <div class="cli-info">
+            <div class="cli-nom">${c.nom || 'Client'}</div>
+            <div class="cli-meta">${c.phone || 'sans numéro'} · ${c.seances || 0} séance${(c.seances || 0) > 1 ? 's' : ''} · ${c.points || 0}/5 pts${dispo > 0 ? ` · 🎁 ${dispo}` : ''}</div>
+          </div>
+          <span class="cli-badge" style="color:${col};border-color:${col}55;">${c.tier || 'Bronze'}</span>
+        </div>`;
+      }).join('');
+      document.querySelectorAll('#cli-body .cliitem').forEach(el => el.addEventListener('click', () => {
+        const phone = el.dataset.phone;
+        if (phone) lookup({ phone });
+        else showErr('Ce client n\'a pas de numéro — cherche-le autrement.');
+      }));
     }
 
     // ---- Dashboard ----

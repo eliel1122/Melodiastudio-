@@ -7,6 +7,7 @@
 const {
   airtable, airtableTable, TABLES, jsonResponse, preflight,
   mapService, PRICES, TUESDAY_HOUR_PRICE, depositFor,
+  carteUrl, ycloudImage,
 } = require('./_lib');
 
 const PIN = process.env.CONSOLE_PIN || '2024';
@@ -22,6 +23,7 @@ exports.handler = async (event) => {
   try {
     switch (p.action) {
       case 'create_resa':    return await createResa(p);
+      case 'send_card':      return await sendCard(p.phone);
       case 'mark_paid':      return await markPaid(p.reservationId);
       case 'mark_done':      return await markDone(p.reservationId);
       case 'set_status':     return await setStatus(p.reservationId, p.statut);
@@ -136,7 +138,21 @@ async function createResa(p) {
 
   let fidelite = null;
   if (clientId) fidelite = await bumpFidelity(clientId, +1);
-  return jsonResponse(200, { ok: true, ref, statut, prix: price, fidelite });
+  const digits = (p.phone || '').replace(/\D/g, '');
+  return jsonResponse(200, {
+    ok: true, ref, statut, prix: price, fidelite,
+    phone: digits || null,
+    carteUrl: digits ? carteUrl(digits) : null,
+  });
+}
+
+// Envoie la carte de fidélité PNG au client sur WhatsApp (transport YCloud).
+async function sendCard(phone) {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (digits.length < 8) return jsonResponse(400, { error: 'Numéro invalide' });
+  const r = await ycloudImage(digits, carteUrl(digits), '🎁 Ta carte fidélité Melodia — présente-la à l\'accueil. Ta carte en ligne : https://melodiastudio.pro/pages/ma-carte.html');
+  if (!r.ok) return jsonResponse(200, { ok: false, error: r.error || 'Envoi impossible' });
+  return jsonResponse(200, { ok: true });
 }
 
 // Changement de statut « à la Airtable » : édition simple du champ Statut,

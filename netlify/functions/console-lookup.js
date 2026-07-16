@@ -4,7 +4,7 @@
 // (par téléphone) + sa fidélité + ses réservations récentes.
 // =====================================================
 
-const { airtable, airtableTable, TABLES, jsonResponse, preflight } = require('./_lib');
+const { airtable, airtableTable, TABLES, jsonResponse, preflight, carteUrl } = require('./_lib');
 
 const PIN = process.env.CONSOLE_PIN || '2024';
 
@@ -131,10 +131,13 @@ function mapResa(r) {
 
 function mapClient(c) {
   const f = c.fields || {};
+  const phone = f['Téléphone'] || '';
+  const digits = phone.replace(/\D/g, '');
   return {
     id: c.id,
     nom: f['Nom complet'] || [f['Prénom'], f['Nom']].filter(Boolean).join(' ') || 'Client',
-    phone: f['Téléphone'] || '',
+    phone,
+    carteUrl: digits.length >= 8 ? carteUrl(digits) : null,
     email: f['Email'] || '',
     tier: f['Tier'] || 'Bronze',
     points: f['Points actifs'] || 0,

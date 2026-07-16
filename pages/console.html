@@ -219,6 +219,23 @@
   </div>
   <div id="toast" class="toast"></div>
 
+  <!-- Modal carte fidélité -->
+  <div id="card-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:60;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;max-width:460px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <p class="eyebrow">🎁 Carte fidélité</p>
+        <button class="btn ghost" id="card-close" style="width:auto;padding:6px 12px;font-size:13px;">✕</button>
+      </div>
+      <div id="card-name" style="font-weight:600;margin-bottom:10px;"></div>
+      <img id="card-img" src="" alt="Carte fidélité" style="width:100%;border-radius:12px;display:none;" />
+      <div id="card-nophone" class="muted" style="display:none;text-align:center;padding:16px 0;">Ce client n'a pas de numéro. Ajoute-lui un numéro pour générer sa carte.</div>
+      <div id="card-actions" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+        <a id="card-dl" class="btn" href="#" target="_blank" rel="noopener" style="text-decoration:none;">⬇️ Ouvrir / télécharger la carte</a>
+        <button class="btn ok" id="card-send">📲 Envoyer sur WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
     const fmtF = (n) => (Number(n) || 0).toLocaleString('fr-FR').replace(/,/g, ' ') + ' F';
@@ -356,6 +373,7 @@
             <button class="btn ghost" data-act="fidelity_delta" data-id="${c.id}" data-delta="-1">−1</button>
           </div>
           ${dispo > 0 ? `<button class="btn ok" style="margin-top:10px" data-act="use_free" data-id="${c.id}">🎁 Utiliser une séance offerte</button>` : ''}
+          <button class="btn ghost" style="margin-top:10px" data-card-nom="${(c.nom || '').replace(/"/g, '')}" data-card-phone="${(c.phone || '').replace(/"/g, '')}" data-card-url="${c.carteUrl || ''}">🎴 Carte fidélité</button>
           ${resas && resas.length ? `<div style="margin-top:16px;"><p class="eyebrow" style="margin-bottom:8px;">Réservations</p>${resas.map(r => `<div class="kv"><span>${r.date} · ${r.service}</span>${statutPill(r.statut)}</div>`).join('')}</div>` : ''}
         </div>`;
       bindActions();
@@ -471,6 +489,36 @@
     })();
 
     function closeAddForm() { $('add-form').style.display = 'none'; $('add-open').style.display = 'block'; }
+
+    // ---- Modal carte fidélité (réutilisé : ajout résa + fiche client) ----
+    let cardPhone = null;
+    function showCardPanel(nom, phoneRaw, url) {
+      cardPhone = (phoneRaw || '').replace(/\D/g, '') || null;
+      $('card-name').textContent = nom || '';
+      const has = !!url;
+      $('card-img').style.display = has ? 'block' : 'none';
+      $('card-actions').style.display = has ? 'flex' : 'none';
+      $('card-nophone').style.display = has ? 'none' : 'block';
+      if (has) {
+        // cache-buster pour toujours afficher les points à jour
+        const busted = url + '&_=' + Date.now();
+        $('card-img').src = busted;
+        $('card-dl').href = busted;
+      }
+      $('card-modal').style.display = 'flex';
+    }
+    $('card-close').addEventListener('click', () => { $('card-modal').style.display = 'none'; });
+    $('card-modal').addEventListener('click', (e) => { if (e.target === $('card-modal')) $('card-modal').style.display = 'none'; });
+    $('card-send').addEventListener('click', async () => {
+      if (!cardPhone) return;
+      const b = $('card-send'); b.disabled = true; b.textContent = 'Envoi…';
+      try {
+        const r = await api('console-action', { action: 'send_card', phone: cardPhone });
+        if (r.ok) toast('Carte envoyée sur WhatsApp ✅');
+        else showErr(r.error || 'Envoi impossible (le client doit avoir écrit au studio récemment).');
+      } catch (e) { showErr(e.message); }
+      finally { b.disabled = false; b.textContent = '📲 Envoyer sur WhatsApp'; }
+    });
     function priceForForm() {
       const s = SVC.find(x => x.id === $('f-svc').value);
       if (!s) return 0;
@@ -502,10 +550,12 @@
           serviceId, date, heure, duree: $('f-duree').value, paiement: fPay,
         });
         toast('Résa créée ✅ ' + d.ref);
-        $('f-nom').value = ''; $('f-tel').value = ''; $('f-heure').value = '';
+        $('f-nom').value = ''; $('f-heure').value = '';
         closeAddForm();
         dashData = null; // le dashboard se rechargera avec la nouvelle résa
         loadList(true);
+        showCardPanel(nom, $('f-tel').value.trim(), d.carteUrl);
+        $('f-tel').value = '';
       } catch (e) { showErr(e.message); } finally { $('f-submit').disabled = false; }
     }
 
@@ -637,6 +687,7 @@
         } catch (e) { showErr(e.message); b.disabled = false; }
       }));
       document.querySelectorAll('[data-open-phone]').forEach(b => b.addEventListener('click', () => lookup({ phone: b.dataset.openPhone })));
+      document.querySelectorAll('[data-card-nom]').forEach(b => b.addEventListener('click', () => showCardPanel(b.dataset.cardNom, b.dataset.cardPhone, b.dataset.cardUrl || null)));
     }
 
     // Auto-open si PIN déjà en session

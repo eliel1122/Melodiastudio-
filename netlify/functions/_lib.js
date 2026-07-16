@@ -203,6 +203,24 @@ function carteUrl(phone) {
   return `https://melodiastudio.pro/api/carte-fidelite?phone=${encodeURIComponent(phone)}&t=${carteToken(phone)}`;
 }
 
+// Envoi d'une image au client via YCloud (même transport que le bot).
+// Renvoie { ok, error? }. Peut échouer si hors fenêtre 24h WhatsApp.
+async function ycloudImage(to, link, caption) {
+  const apiKey = process.env.YCLOUD_API_KEY;
+  const from = process.env.YCLOUD_FROM || '2250703387738';
+  if (!apiKey) return { ok: false, error: 'YCloud non configuré' };
+  try {
+    const res = await fetch('https://api.ycloud.com/v2/whatsapp/messages', {
+      method: 'POST',
+      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: String(to).replace(/\D/g, ''), type: 'image', image: { link, caption } }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.message || `YCloud HTTP ${res.status}` };
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
 module.exports = {
   AIRTABLE_API_KEY,
   AIRTABLE_BASE_ID,
@@ -223,4 +241,5 @@ module.exports = {
   paystackValidSignature,
   carteToken,
   carteUrl,
+  ycloudImage,
 };

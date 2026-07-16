@@ -21,6 +21,15 @@ exports.handler = async (event) => {
   const phone = (p.phone || (!isRef(q) ? q : '')).trim();
 
   try {
+    // 0. Liste des réservations (gestion des statuts façon Airtable, en + simple)
+    if (p.mode === 'list') {
+      const found = await airtable(
+        `${airtableTable(TABLES.RESERVATIONS)}?pageSize=80&sort%5B0%5D%5Bfield%5D=Date&sort%5B0%5D%5Bdirection%5D=desc`,
+        { method: 'GET' }
+      );
+      return jsonResponse(200, { ok: true, kind: 'list', reservations: (found.records || []).map(mapResa) });
+    }
+
     // 1. Réservation par référence
     if (ref) {
       const found = await airtable(
@@ -60,6 +69,8 @@ exports.handler = async (event) => {
 function isRef(s) { return /^MEL-/i.test(s); }
 function esc(s) { return (s || '').replace(/'/g, "\\'"); }
 
+function one(v) { return Array.isArray(v) ? v[0] : v; } // lookups Airtable = tableaux
+
 function mapResa(r) {
   const f = r.fields || {};
   return {
@@ -74,6 +85,8 @@ function mapResa(r) {
     modePaiement: f['Mode paiement'] || '',
     notes: f['Notes'] || '',
     solde: extractSolde(f['Notes'] || ''),
+    clientNom: one(f['Nom complet client']) || 'Client',
+    clientPhone: one(f['Téléphone client']) || '',
   };
 }
 

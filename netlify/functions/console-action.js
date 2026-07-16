@@ -20,6 +20,7 @@ exports.handler = async (event) => {
     switch (p.action) {
       case 'mark_paid':      return await markPaid(p.reservationId);
       case 'mark_done':      return await markDone(p.reservationId);
+      case 'set_status':     return await setStatus(p.reservationId, p.statut);
       case 'fidelity_delta': return await fidelityDelta(p.clientId, parseInt(p.delta, 10) || 0);
       case 'use_free':       return await useFreeSession(p.clientId);
       default:               return jsonResponse(400, { error: 'Action inconnue' });
@@ -51,6 +52,22 @@ async function patchResilient(path, fields) {
       throw e;
     }
   }
+}
+
+// Changement de statut « à la Airtable » : édition simple du champ Statut,
+// sans effet de bord fidélité (le crédit de points reste sur le bouton
+// "Session terminée" du détail réservation, pour éviter tout double comptage).
+const STATUSES = ['En attente', 'En attente paiement', 'Confirmée', 'Soldée', 'Terminée', 'Annulée'];
+async function setStatus(id, statut) {
+  if (!id) return jsonResponse(400, { error: 'reservationId requis' });
+  if (!STATUSES.includes(statut)) return jsonResponse(400, { error: 'Statut invalide' });
+  const r = await getResa(id);
+  const prev = r.fields?.['Notes'] || '';
+  await patchResilient(`${airtableTable(TABLES.RESERVATIONS)}/${id}`, {
+    'Statut': statut,
+    'Notes': prev + `\n✏️ Statut → ${statut} (console)`,
+  });
+  return jsonResponse(200, { ok: true, statut });
 }
 
 // Encaisse le solde → Soldée

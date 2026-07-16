@@ -43,8 +43,32 @@
     #reader { border-radius:14px; overflow:hidden; margin-top:12px; }
     #reader video { border-radius:14px; }
     .tier { font-family:Anton,sans-serif; font-size:20px; text-transform:uppercase; }
-    .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#141420; border:1px solid var(--line); padding:12px 18px; border-radius:12px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; }
+    .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#141420; border:1px solid var(--line); padding:12px 18px; border-radius:12px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:50; }
     .toast.show { opacity:1; }
+    .pill.danger { color:var(--danger); border-color:rgba(255,77,94,.4); }
+    /* ---- Onglet Résas ---- */
+    .filters { display:flex; gap:7px; overflow-x:auto; padding:2px 0 4px; margin:-2px 0 4px; scrollbar-width:none; }
+    .filters::-webkit-scrollbar { display:none; }
+    .chip { flex:0 0 auto; padding:8px 14px; border-radius:20px; border:1px solid var(--line); font-size:13px; font-weight:600; color:var(--dim); cursor:pointer; white-space:nowrap; }
+    .chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .resa { border:1px solid var(--line); border-radius:14px; margin-top:10px; overflow:hidden; background:#101019; }
+    .resa-head { display:flex; align-items:center; gap:10px; padding:13px 14px; cursor:pointer; }
+    .resa-head:active { background:#15151f; }
+    .resa-main { flex:1; min-width:0; }
+    .resa-title { font-weight:600; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .resa-sub { font-size:12px; color:var(--dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .resa-sub .mono { font-family:'JetBrains Mono',monospace; }
+    .chevron { color:var(--low); font-size:13px; transition:transform .2s; }
+    .resa.open .chevron { transform:rotate(90deg); }
+    .resa-body { display:none; padding:0 14px 14px; border-top:1px solid var(--line); }
+    .resa.open .resa-body { display:block; }
+    .resa-body .lbl { font-size:11px; color:var(--dim); margin:12px 0 8px; text-transform:uppercase; letter-spacing:.08em; }
+    .statuses { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .st-btn { padding:11px 8px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--fg); font-size:13px; font-weight:600; cursor:pointer; text-align:center; }
+    .st-btn.current { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .st-btn.danger { color:var(--danger); border-color:rgba(255,77,94,.35); }
+    .st-btn:disabled { opacity:.5; }
+    .list-empty { text-align:center; color:var(--dim); font-size:14px; padding:26px 0; }
   </style>
 </head>
 <body>
@@ -68,8 +92,9 @@
     <!-- APP -->
     <div id="app" style="display:none;">
       <div class="tabs">
-        <div class="tab active" data-tab="scan">📷 Scanner</div>
+        <div class="tab active" data-tab="scan">📷 Scan</div>
         <div class="tab" data-tab="search">🔎 Recherche</div>
+        <div class="tab" data-tab="list">📋 Résas</div>
       </div>
 
       <div id="tab-scan" class="card">
@@ -83,6 +108,23 @@
         <input id="q" type="text" placeholder="MEL-260716-XXXX ou 07…" />
         <div style="height:12px;"></div>
         <button class="btn" id="q-go">Rechercher</button>
+      </div>
+
+      <div id="tab-list" class="card" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <p class="eyebrow">Réservations · live</p>
+          <button class="btn ghost" id="list-refresh" style="width:auto;padding:8px 14px;font-size:13px;">↻ Rafraîchir</button>
+        </div>
+        <input id="list-search" type="text" placeholder="Filtrer : nom, réf, numéro…" style="margin-top:12px;" />
+        <div class="filters" id="list-filters">
+          <div class="chip active" data-st="">Toutes</div>
+          <div class="chip" data-st="En attente paiement">Attente</div>
+          <div class="chip" data-st="Confirmée">Confirmée</div>
+          <div class="chip" data-st="Soldée">Soldée</div>
+          <div class="chip" data-st="Terminée">Terminée</div>
+          <div class="chip" data-st="Annulée">Annulée</div>
+        </div>
+        <div id="list-body"></div>
       </div>
 
       <div id="result"></div>
@@ -139,7 +181,9 @@
       const tab = t.dataset.tab;
       $('tab-scan').style.display = tab === 'scan' ? 'block' : 'none';
       $('tab-search').style.display = tab === 'search' ? 'block' : 'none';
+      $('tab-list').style.display = tab === 'list' ? 'block' : 'none';
       if (tab === 'scan') startScanner(); else stopScanner();
+      if (tab === 'list') loadList();
     }));
 
     // ---- Scanner ----
@@ -225,6 +269,84 @@
           ${resas && resas.length ? `<div style="margin-top:16px;"><p class="eyebrow" style="margin-bottom:8px;">Réservations</p>${resas.map(r => `<div class="kv"><span>${r.date} · ${r.service}</span>${statutPill(r.statut)}</div>`).join('')}</div>` : ''}
         </div>`;
       bindActions();
+    }
+
+    // ---- Onglet Résas (liste + changement de statut) ----
+    const ALL_STATUSES = ['En attente', 'En attente paiement', 'Confirmée', 'Soldée', 'Terminée', 'Annulée'];
+    let allResas = [];
+    let listFilter = '';
+
+    document.querySelectorAll('#list-filters .chip').forEach(ch => ch.addEventListener('click', () => {
+      document.querySelectorAll('#list-filters .chip').forEach(x => x.classList.remove('active'));
+      ch.classList.add('active');
+      listFilter = ch.dataset.st;
+      renderList();
+    }));
+    $('list-refresh').addEventListener('click', () => loadList(true));
+    $('list-search').addEventListener('input', renderList);
+
+    async function loadList(force) {
+      if (allResas.length && !force) { renderList(); return; }
+      $('list-body').innerHTML = '<div class="list-empty">Chargement…</div>';
+      try {
+        const d = await api('console-lookup', { mode: 'list' });
+        allResas = d.reservations || [];
+        renderList();
+      } catch (e) { $('list-body').innerHTML = ''; showErr(e.message); }
+    }
+
+    const norm = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    function renderList() {
+      const raw = $('list-search').value.trim();
+      const q = norm(raw);
+      const qDigits = raw.replace(/\D/g, '');
+      let rows = allResas;
+      if (listFilter) rows = rows.filter(r => r.statut === listFilter);
+      if (q) rows = rows.filter(r =>
+        norm(r.clientNom).includes(q) ||
+        norm(r.ref).includes(q) ||
+        norm(r.service).includes(q) ||
+        (qDigits && (r.clientPhone || '').replace(/\D/g, '').includes(qDigits))
+      );
+      if (!rows.length) { $('list-body').innerHTML = '<div class="list-empty">Aucune réservation.</div>'; return; }
+      $('list-body').innerHTML = rows.map(r => `
+        <div class="resa" data-id="${r.id}">
+          <div class="resa-head">
+            <div class="resa-main">
+              <div class="resa-title">${r.service || 'Session'} · ${statutPill(r.statut)}</div>
+              <div class="resa-sub">${fmtDate(r.date)}${r.heure ? ' · ' + r.heure : ''} — ${r.clientNom || 'Client'}</div>
+              <div class="resa-sub"><span class="mono">${r.ref || ''}</span>${r.solde ? ' · solde ' + fmtF(r.solde) : ''}</div>
+            </div>
+            <span class="chevron">▶</span>
+          </div>
+          <div class="resa-body">
+            <div class="lbl">Changer le statut</div>
+            <div class="statuses">
+              ${ALL_STATUSES.map(s => `<button class="st-btn ${s === r.statut ? 'current' : ''} ${s === 'Annulée' ? 'danger' : ''}" data-set="${s}" data-id="${r.id}" ${s === r.statut ? 'disabled' : ''}>${s}</button>`).join('')}
+            </div>
+          </div>
+        </div>`).join('');
+      // toggle ouverture
+      document.querySelectorAll('#list-body .resa-head').forEach(h => h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
+      // changement de statut
+      document.querySelectorAll('#list-body .st-btn[data-set]').forEach(b => b.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        b.disabled = true;
+        try {
+          await api('console-action', { action: 'set_status', reservationId: b.dataset.id, statut: b.dataset.set });
+          const r = allResas.find(x => x.id === b.dataset.id);
+          if (r) r.statut = b.dataset.set;
+          toast('Statut → ' + b.dataset.set + ' ✅');
+          renderList();
+        } catch (e) { showErr(e.message); b.disabled = false; }
+      }));
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso + 'T00:00:00');
+      if (isNaN(d)) return iso;
+      return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
     }
 
     function bindActions() {

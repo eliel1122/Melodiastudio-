@@ -924,12 +924,13 @@ function showPaymentChoice() {
         <button id="pay-acompte" class="btn btn--primary btn--lg" style="justify-content:space-between;display:flex;">
           <span>💳 Bloquer avec acompte</span><span>${fmtF(deposit)}</span>
         </button>
-        <p style="font-size:12px;color:var(--fg-low);margin:-6px 0 6px 4px;">Solde de ${fmtF(solde)} à régler au studio.</p>
+        <p style="font-size:12px;color:var(--fg-low);margin:-6px 0 6px 4px;">Acompte <b style="color:var(--danger,#FF4D5E);">non remboursable</b> · solde de ${fmtF(solde)} à régler au studio.</p>
         <button id="pay-total" class="btn btn--ghost btn--lg" style="justify-content:space-between;display:flex;">
           <span>💳 Tout payer maintenant</span><span>${fmtF(total)}</span>
         </button>
       </div>
       <p style="font-size:12px;color:var(--fg-low);margin-top:20px;text-align:center;">
+        L'acompte confirme ta venue et n'est pas remboursé en cas d'absence.<br>
         Paiement sécurisé Paystack · carte, Orange Money, Wave, MTN.
       </p>
       <div id="pay-error" style="display:none;margin-top:16px;color:var(--danger,#FF4D5E);font-size:13px;text-align:center;"></div>

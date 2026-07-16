@@ -246,7 +246,8 @@ async function sendMaCarte(from, name) {
         `🎁 Ta carte fidélité Melodia\n` +
         (offertes > 0
           ? `🎉 ${offertes} séance${offertes > 1 ? 's' : ''} offerte${offertes > 1 ? 's' : ''} à utiliser — présente ta carte à l'accueil !`
-          : `💪 Encore ${Math.max(0, 5 - pts)} point(s) et ta prochaine séance est OFFERTE.`),
+          : `💪 Encore ${Math.max(0, 5 - pts)} point(s) et ta prochaine séance est OFFERTE.`) +
+        `\n\n💳 Ta carte en ligne : https://melodiastudio.pro/pages/ma-carte.html`,
     },
   });
 }
@@ -590,7 +591,7 @@ async function sendRecap(from, svcId, dateIso, hStr) {
   const bodyTxt =
     `📝 *RÉCAP DE TA RÉSA*\n\n🎙️ ${c.title}\n📅 ${frDate(dateIso)}\n⏰ ${pad2(h)}h — ${fin}\n💰 ${prixTxt}\n\n` +
     (total > 0
-      ? `Bloque ton créneau :\n• *Acompte ${dep} F* (solde ${solde} F au studio)\n• ou *paie tout* maintenant`
+      ? `Bloque ton créneau :\n• *Acompte ${dep} F* _(non remboursable)_ — solde ${solde} F au studio\n• ou *paie tout* maintenant\n\n⚠️ L'acompte confirme ta venue : il n'est pas remboursé en cas d'absence.`
       : `On valide ?`);
 
   return await callMeta(from, {
@@ -640,7 +641,7 @@ async function startPayment(from, name, svcId, dateIso, hStr, choice) {
       `💳 *Paiement pour bloquer ta session*\n\n` +
       `${c.title} · ${frDate(dateIso)} à ${pad2(h)}h\n` +
       `Montant : *${montant.toLocaleString('fr-FR').replace(/,/g, ' ')} F*` +
-      (choice === 'acompte' && data.solde ? ` (solde ${data.solde} F au studio)` : '') +
+      (choice === 'acompte' && data.solde ? ` (acompte non remboursable · solde ${data.solde} F au studio)` : '') +
       `\n\n👉 Paie ici (carte, Orange Money, Wave, MTN) :\n${data.authorization_url}\n\n` +
       `Dès que c'est payé, tu reçois ta confirmation ici. Le créneau est gardé 20 min ⏳`
     );

@@ -204,7 +204,8 @@ async function sendFidelityAfterBooking(wa, meta, ids) {
     `⭐ +${delta} point${delta > 1 ? 's' : ''} pour ta résa !\n` +
     (unlocked
       ? `🎉 FÉLICITATIONS : tu viens de débloquer une SÉANCE OFFERTE${dispo > 1 ? ` (${dispo} dispo)` : ''} — elle t'attend au studio.`
-      : `💪 Encore ${5 - points} point${5 - points > 1 ? 's' : ''} et ta prochaine séance est OFFERTE.`);
+      : `💪 Encore ${5 - points} point${5 - points > 1 ? 's' : ''} et ta prochaine séance est OFFERTE.`) +
+    `\n\n💳 Ta carte en ligne : https://melodiastudio.pro/pages/ma-carte.html`;
   await sendYCloudImage(wa, carteUrl(wa), caption);
 }
 

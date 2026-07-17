@@ -14,7 +14,8 @@
 const crypto = require('crypto');
 const {
   airtable, airtableTable, TABLES, mapService, sendWhatsApp,
-  PRICES, TUESDAY_HOUR_PRICE, depositFor, carteUrl,
+  PRICES, depositFor, carteUrl,
+  todayISO, promoHourActive, hourPrice,
 } = require('./_lib');
 
 const META_API = 'https://graph.facebook.com/v21.0';
@@ -338,11 +339,15 @@ async function findClientByPhone(from) {
 }
 
 async function sendTarifs(from) {
+  const promo = promoHourActive(todayISO());
   const txt = [
     '*📋 TARIFS MELODIA STUDIO*',
     '',
+    ...(promo ? ['🔥 *PROMO ÉTÉ* — l\'heure de studio à 15 000 F jusqu\'au 15 août !', ''] : []),
     '*🎙️ ENREGISTREMENT*',
-    '• À l\'heure : 25 000 FCFA',
+    promo
+      ? '• À l\'heure : *15 000 FCFA* 🔥 _(au lieu de 25 000)_'
+      : '• À l\'heure : 25 000 FCFA',
     '• Pack Silver (2h + pré-mix + photos) : 40 000',
     '• Pack Gold (2h + mix + photos + cover) : 180 000',
     '• Pack Platinium (tout inclus) : 280 000',
@@ -428,7 +433,14 @@ const JOURS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const MOIS = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
 
 async function sendReserverFlow(from) {
-  const row = (id) => ({ id: `S|${id}`, title: CATALOG[id].title, description: CATALOG[id].desc });
+  const promo = promoHourActive(todayISO());
+  const row = (id) => ({
+    id: `S|${id}`,
+    title: CATALOG[id].title,
+    description: (id === 'rec' && promo)
+      ? '🔥 Promo été : 15 000 F / h (au lieu de 25 000)'
+      : CATALOG[id].desc,
+  });
   return await callMeta(from, {
     type: 'interactive',
     interactive: {
@@ -464,11 +476,14 @@ async function sendDates(from, svcId, pageArg) {
     const dow = d.getUTCDay();
     const label = `${JOURS[dow]} ${d.getUTCDate()} ${MOIS[d.getUTCMonth()]}`;
     const isToday = i === 0;
-    const mardi = dow === 2 && svcId === 'rec';
+    // rec : 15 000 F / h si promo été (toutes dates ≤ 15 août) ou mardi.
+    const promo15 = svcId === 'rec' && (promoHourActive(iso) || dow === 2);
     allRows.push({
       id: `D|${svcId}|${iso}`,
       title: isToday ? 'Aujourd\'hui' : label,
-      description: mardi ? '🔥 Tarif mardi : 15 000 F / h' : (isToday ? label : undefined),
+      description: promo15
+        ? (isToday ? `${label} · 🔥 15 000 F/h` : '🔥 15 000 F / h')
+        : (isToday ? label : undefined),
     });
   }
   let page = Math.max(0, parseInt(pageArg, 10) || 0);
@@ -557,11 +572,12 @@ async function sendSlots(from, svcId, dateIso, period) {
   });
 }
 
-// Prix total d'un service du catalogue (F CFA), avec tarif mardi pour rec.
+// Prix total d'un service du catalogue (F CFA). Pour l'heure de studio (rec),
+// hourPrice() applique la promo été (15 000 F jusqu'au 15 août) et le tarif mardi.
 function totalForCatalog(svcId, dateIso) {
   const c = CATALOG[svcId];
   if (!c) return 0;
-  if (c.svc === 'rec' && new Date(dateIso + 'T00:00:00Z').getUTCDay() === 2) return TUESDAY_HOUR_PRICE;
+  if (c.svc === 'rec') return hourPrice(dateIso);
   return PRICES[c.svc] || 0;
 }
 
@@ -573,7 +589,8 @@ async function sendRecap(from, svcId, dateIso, hStr) {
   const total = totalForCatalog(svcId, dateIso);
   const dep = Math.min(depositFor(c.svc), total || depositFor(c.svc));
   const solde = Math.max(0, total - dep);
-  const prixTxt = total ? `${total.toLocaleString('fr-FR').replace(/,/g, ' ')} F` : 'sur devis';
+  const promoTag = (c.svc === 'rec' && promoHourActive(dateIso)) ? ' 🔥 _promo été_' : '';
+  const prixTxt = total ? `${total.toLocaleString('fr-FR').replace(/,/g, ' ')} F${promoTag}` : 'sur devis';
 
   // Prix connu → paiement en ligne (acompte / total). Sinon confirmation simple.
   const buttons = total > 0

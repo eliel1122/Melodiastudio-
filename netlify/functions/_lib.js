@@ -141,6 +141,18 @@ const PRICES = {
 };
 const TUESDAY_HOUR_PRICE = 15000;
 
+// Promo été : l'heure de studio (rec) à 15 000 F pour toute session réservée
+// jusqu'au 15 août 2026 inclus. Après cette date, on retombe sur 25 000 F
+// (avec le tarif mardi à 15 000 F qui, lui, reste permanent).
+const PROMO_HOUR_END = '2026-08-15';
+const PROMO_HOUR_PRICE = 15000;
+function promoHourActive(iso) { return !!iso && iso <= PROMO_HOUR_END; }
+function isTuesdayISO(iso) { return !!iso && new Date(iso + 'T00:00:00Z').getUTCDay() === 2; }
+// Prix de l'heure de studio (rec) : promo été OU tarif mardi = 15 000, sinon 25 000.
+function hourPrice(iso) {
+  return (promoHourActive(iso) || isTuesdayISO(iso)) ? PROMO_HOUR_PRICE : (PRICES['rec'] || 25000);
+}
+
 function depositFor(serviceId) {
   return DEPOSIT_BY_SERVICE[serviceId] || DEPOSIT_XOF;
 }
@@ -236,6 +248,10 @@ module.exports = {
   todayISO,
   PRICES,
   TUESDAY_HOUR_PRICE,
+  PROMO_HOUR_END,
+  PROMO_HOUR_PRICE,
+  promoHourActive,
+  hourPrice,
   depositFor,
   paystackInit,
   paystackValidSignature,

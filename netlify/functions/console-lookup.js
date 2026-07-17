@@ -35,21 +35,20 @@ exports.handler = async (event) => {
         if (!page.offset) break;
         listOffset = page.offset;
       }
-      const found = { records };
       const now = Date.now();
       const visible = [];
-      for (const rec of found.records || []) {
+      for (const rec of records) {
         const f = rec.fields || {};
-        const statut = f['Statut'];
+        // Nettoyage : une Annulée SANS acompte, 20 min après clôture, = réservation
+        // abandonnée (paiement jamais fait) → on la supprime. Tout le reste (dont
+        // les Terminée et les Annulée AVEC acompte) reste visible dans la liste,
+        // filtrable par statut et supprimable à la main via les cases à cocher.
         const closedAge = closureAgeMs(f['Notes'] || '', now);
         const closedOld = closedAge != null && closedAge > TWENTY_MIN;
-        // Suppression Airtable : Annulée SANS acompte, 20 min après clôture
-        if (closedOld && statut === 'Annulée' && !f['Acompte payé']) {
+        if (closedOld && f['Statut'] === 'Annulée' && !f['Acompte payé']) {
           airtable(`${airtableTable(TABLES.RESERVATIONS)}/${rec.id}`, { method: 'DELETE' }).catch(() => {});
-          continue; // exclue de la liste
+          continue;
         }
-        // Masquage console : Terminée / Annulée, 20 min après clôture
-        if (closedOld && (statut === 'Terminée' || statut === 'Annulée')) continue;
         visible.push(mapResa(rec));
       }
       return jsonResponse(200, { ok: true, kind: 'list', reservations: visible });

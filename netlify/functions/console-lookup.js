@@ -23,10 +23,19 @@ exports.handler = async (event) => {
   try {
     // 0. Liste des réservations (gestion des statuts façon Airtable, en + simple)
     if (p.mode === 'list') {
-      const found = await airtable(
-        `${airtableTable(TABLES.RESERVATIONS)}?pageSize=80&sort%5B0%5D%5Bfield%5D=Date&sort%5B0%5D%5Bdirection%5D=desc`,
-        { method: 'GET' }
-      );
+      // Pagination : on récupère TOUTES les résas (comme le dashboard), sinon
+      // celles dont la date de session sort de la 1re page de 80 disparaissent
+      // de la liste alors qu'elles comptent bien dans les stats.
+      const records = [];
+      let listOffset = '';
+      for (let i = 0; i < 15; i++) { // 15 × 100 = 1500 max
+        const url = `${airtableTable(TABLES.RESERVATIONS)}?pageSize=100&sort%5B0%5D%5Bfield%5D=Date&sort%5B0%5D%5Bdirection%5D=desc${listOffset ? `&offset=${listOffset}` : ''}`;
+        const page = await airtable(url, { method: 'GET' });
+        records.push(...(page.records || []));
+        if (!page.offset) break;
+        listOffset = page.offset;
+      }
+      const found = { records };
       const now = Date.now();
       const visible = [];
       for (const rec of found.records || []) {

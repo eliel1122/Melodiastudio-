@@ -27,6 +27,8 @@ exports.handler = async (event) => {
       case 'mark_paid':      return await markPaid(p.reservationId);
       case 'mark_done':      return await markDone(p.reservationId);
       case 'set_status':     return await setStatus(p.reservationId, p.statut);
+      case 'delete_resa':    return await deleteResas(p);
+      case 'edit_client':    return await editClient(p);
       case 'fidelity_delta': return await fidelityDelta(p.clientId, parseInt(p.delta, 10) || 0);
       case 'use_free':       return await useFreeSession(p.clientId);
       default:               return jsonResponse(400, { error: 'Action inconnue' });
@@ -183,6 +185,39 @@ async function setStatus(id, statut) {
   return jsonResponse(200, { ok: true, statut });
 }
 
+// Suppression définitive d'une ou plusieurs réservations (console → Airtable).
+// Permet de nettoyer les résas de test sans passer par Airtable.
+async function deleteResas(p) {
+  const ids = Array.isArray(p.reservationIds) ? p.reservationIds
+    : (p.reservationId ? [p.reservationId] : []);
+  if (!ids.length) return jsonResponse(400, { error: 'Aucune réservation sélectionnée' });
+  let deleted = 0; const errors = [];
+  for (const id of ids) {
+    try { await airtable(`${airtableTable(TABLES.RESERVATIONS)}/${id}`, { method: 'DELETE' }); deleted++; }
+    catch (e) { errors.push(id); }
+  }
+  return jsonResponse(200, { ok: true, deleted, errors });
+}
+
+// Édition des infos d'un client (nom, téléphone, email) depuis la console.
+async function editClient(p) {
+  if (!p.clientId) return jsonResponse(400, { error: 'clientId requis' });
+  const nom = (p.nom || '').trim();
+  const digits = (p.phone || '').replace(/\D/g, '');
+  const fields = {};
+  if (nom) {
+    const [prenom, ...rest] = nom.split(' ');
+    fields['Nom complet'] = nom;
+    fields['Prénom'] = prenom || '';
+    fields['Nom'] = rest.join(' ') || '';
+  }
+  // téléphone : '+225…' si fourni, sinon on vide le champ
+  fields['Téléphone'] = digits ? '+' + digits : '';
+  if (p.email !== undefined) fields['Email'] = (p.email || '').trim();
+  await patchResilient(`${airtableTable(TABLES.CLIENTS)}/${p.clientId}`, fields);
+  return jsonResponse(200, { ok: true, phone: digits || null, carteUrl: digits.length >= 8 ? carteUrl(digits) : null });
+}
+
 // Encaisse le solde → Soldée
 async function markPaid(id) {
   if (!id) return jsonResponse(400, { error: 'reservationId requis' });
@@ -259,8 +294,8 @@ async function bumpFidelity(clientId, delta) {
 }
 
 function computeTier(s) {
-  if (s >= 30) return 'Platinum';
-  if (s >= 15) return 'Gold';
+  if (s >= 20) return 'Platinum';
+  if (s >= 10) return 'Gold';
   if (s >= 5) return 'Argent';
   return 'Bronze';
 }

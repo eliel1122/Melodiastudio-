@@ -71,6 +71,7 @@
     .st-btn.danger { color:var(--danger); border-color:rgba(255,77,94,.35); }
     .st-btn:disabled { opacity:.5; }
     .list-empty { text-align:center; color:var(--dim); font-size:14px; padding:26px 0; }
+    .rsel { width:20px; height:20px; flex:0 0 auto; accent-color:var(--danger); cursor:pointer; }
     /* ---- Dashboard ---- */
     .kpis { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
     .kpi { background:#101019; border:1px solid var(--line); border-radius:14px; padding:14px; }
@@ -166,7 +167,7 @@
             <label>Durée (heures)</label>
             <input id="f-duree" type="number" min="1" value="1" />
           </div>
-          <div class="row" style="margin-top:10px;">
+          <div class="row" style="margin-top:10px;gap:16px;">
             <div><label>Date</label><input id="f-date" type="date" /></div>
             <div><label>Heure</label><input id="f-heure" type="text" placeholder="20h" /></div>
           </div>
@@ -191,6 +192,9 @@
           <div class="chip" data-st="Soldée">Soldée</div>
           <div class="chip" data-st="Terminée">Terminée</div>
           <div class="chip" data-st="Annulée">Annulée</div>
+        </div>
+        <div id="del-bar" style="display:none;margin-top:10px;">
+          <button class="btn danger" id="del-selected">🗑 Supprimer la sélection (<span id="del-count">0</span>)</button>
         </div>
         <div id="list-body"></div>
       </div>
@@ -236,9 +240,47 @@
     </div>
   </div>
 
+  <!-- Modal édition client -->
+  <div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:60;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;max-width:460px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <p class="eyebrow">✏️ Éditer le client</p>
+        <button class="btn ghost" id="edit-close" style="width:auto;padding:6px 12px;font-size:13px;">✕</button>
+      </div>
+      <label>Nom complet</label>
+      <input id="e-nom" type="text" placeholder="Nom du client" />
+      <div style="height:10px;"></div>
+      <label>Téléphone (WhatsApp)</label>
+      <input id="e-tel" type="tel" placeholder="07…" />
+      <div style="height:10px;"></div>
+      <label>Email (facultatif)</label>
+      <input id="e-email" type="email" placeholder="ton@email.com" />
+      <div id="edit-err" class="err" style="display:none;"></div>
+      <div style="height:14px;"></div>
+      <div class="row">
+        <button class="btn ok" id="edit-save">💾 Enregistrer</button>
+        <button class="btn ghost" id="edit-cancel">Annuler</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
     const fmtF = (n) => (Number(n) || 0).toLocaleString('fr-FR').replace(/,/g, ' ') + ' F';
+    // Heure : la base contient des formats mélangés ("14:00", "14h — 15h", "20h").
+    const fmtHeure1 = (h) => { h = String(h || '').trim();
+      let m = h.match(/^(\d{1,2}):(\d{2})/);       if (m) return m[1] + 'h' + (m[2] === '00' ? '' : m[2]);
+      m = h.match(/^(\d{1,2})\s*h\s*(\d{2})?$/i);   if (m) return m[1] + 'h' + (m[2] && m[2] !== '00' ? m[2] : '');
+      return h; };
+    const fmtHeure = (h) => { h = String(h || '').trim(); if (!h) return '';
+      if (/\d\s*(?:—|–|-|à)\s*\d/.test(h)) return h.split(/\s*(?:—|–|-|à)\s*/).map(fmtHeure1).join(' — ');
+      return fmtHeure1(h); };
+    // Normalise vers "HH:MM" pour stocker propre (cohérent avec le site + get-availability).
+    const heureToHHMM = (h) => { h = String(h || '').trim(); const p2 = (n) => String(n).padStart(2, '0');
+      let m = h.match(/^(\d{1,2})\s*h\s*(\d{2})?$/i); if (m) return p2(m[1]) + ':' + (m[2] || '00');
+      m = h.match(/^(\d{1,2}):(\d{2})/);             if (m) return p2(m[1]) + ':' + m[2];
+      m = h.match(/^(\d{1,2})$/);                     if (m) return p2(m[1]) + ':00';
+      return h; };
     let PIN = sessionStorage.getItem('console_pin') || '';
     let qr = null;
 
@@ -340,7 +382,7 @@
           </div>
           <div class="kv"><span>Client</span><b>${c.nom || '—'}</b></div>
           <div class="kv"><span>WhatsApp</span><b>${c.phone || '—'}</b></div>
-          <div class="kv"><span>Date</span><b>${r.date || '—'} · ${r.heure || ''}</b></div>
+          <div class="kv"><span>Date</span><b>${fmtDate(r.date)}${r.heure ? ' · ' + fmtHeure(r.heure) : ''}</b></div>
           <div class="kv"><span>Acompte</span><b>${r.acomptePaye ? '✅ payé' : '—'}</b></div>
           ${r.solde ? `<div class="kv"><span>Solde à encaisser</span><b style="color:var(--accent)">${fmtF(r.solde)}</b></div>` : ''}
           <div class="kv"><span>Réf</span><b style="font-family:'JetBrains Mono',monospace">${r.ref}</b></div>
@@ -374,6 +416,7 @@
           </div>
           ${dispo > 0 ? `<button class="btn ok" style="margin-top:10px" data-act="use_free" data-id="${c.id}">🎁 Utiliser une séance offerte</button>` : ''}
           <button class="btn ghost" style="margin-top:10px" data-card-nom="${(c.nom || '').replace(/"/g, '')}" data-card-phone="${(c.phone || '').replace(/"/g, '')}" data-card-url="${c.carteUrl || ''}">🎴 Carte fidélité</button>
+          ${c.id ? `<button class="btn ghost" style="margin-top:10px" data-edit-id="${c.id}" data-edit-nom="${(c.nom || '').replace(/"/g, '&quot;')}" data-edit-phone="${(c.phone || '').replace(/"/g, '&quot;')}" data-edit-email="${(c.email || '').replace(/"/g, '&quot;')}">✏️ Éditer le client</button>` : ''}
           ${resas && resas.length ? `<div style="margin-top:16px;"><p class="eyebrow" style="margin-bottom:8px;">Réservations</p>${resas.map(r => `<div class="kv"><span>${r.date} · ${r.service}</span>${statutPill(r.statut)}</div>`).join('')}</div>` : ''}
         </div>`;
       bindActions();
@@ -383,6 +426,26 @@
     const ALL_STATUSES = ['En attente', 'En attente paiement', 'Confirmée', 'Soldée', 'Terminée', 'Annulée'];
     let allResas = [];
     let listFilter = '';
+    let selectedResas = new Set();
+    function updateDelBar() {
+      const n = selectedResas.size;
+      $('del-count').textContent = n;
+      $('del-bar').style.display = n ? 'block' : 'none';
+    }
+    $('del-selected').addEventListener('click', async () => {
+      const ids = [...selectedResas];
+      if (!ids.length) return;
+      if (!confirm(`Supprimer définitivement ${ids.length} réservation${ids.length > 1 ? 's' : ''} ? C'est irréversible.`)) return;
+      const b = $('del-selected'); b.disabled = true;
+      try {
+        const d = await api('console-action', { action: 'delete_resa', reservationIds: ids });
+        toast(`${d.deleted} réservation${d.deleted > 1 ? 's' : ''} supprimée${d.deleted > 1 ? 's' : ''} 🗑`);
+        allResas = allResas.filter(r => !ids.includes(r.id));
+        selectedResas.clear();
+        updateDelBar();
+        renderList();
+      } catch (e) { showErr(e.message); } finally { b.disabled = false; }
+    });
 
     document.querySelectorAll('#list-filters .chip').forEach(ch => ch.addEventListener('click', () => {
       document.querySelectorAll('#list-filters .chip').forEach(x => x.classList.remove('active'));
@@ -420,9 +483,10 @@
       $('list-body').innerHTML = rows.map(r => `
         <div class="resa" data-id="${r.id}">
           <div class="resa-head">
+            <input type="checkbox" class="rsel" data-id="${r.id}" ${selectedResas.has(r.id) ? 'checked' : ''}>
             <div class="resa-main">
               <div class="resa-title">${r.service || 'Session'} · ${statutPill(r.statut)}</div>
-              <div class="resa-sub">${fmtDate(r.date)}${r.heure ? ' · ' + r.heure : ''} — ${r.clientNom || 'Client'}</div>
+              <div class="resa-sub">${fmtDate(r.date)}${r.heure ? ' · ' + fmtHeure(r.heure) : ''} — ${r.clientNom || 'Client'}</div>
               <div class="resa-sub"><span class="mono">${r.ref || ''}</span>${r.solde ? ' · solde ' + fmtF(r.solde) : ''}</div>
             </div>
             <span class="chevron">▶</span>
@@ -434,6 +498,13 @@
             </div>
           </div>
         </div>`).join('');
+      // checkboxes de sélection (pour suppression) — n'ouvre pas la résa
+      document.querySelectorAll('#list-body .rsel').forEach(cb => cb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (cb.checked) selectedResas.add(cb.dataset.id); else selectedResas.delete(cb.dataset.id);
+        updateDelBar();
+      }));
+      updateDelBar();
       // toggle ouverture
       document.querySelectorAll('#list-body .resa-head').forEach(h => h.addEventListener('click', () => h.parentElement.classList.toggle('open')));
       // changement de statut
@@ -519,6 +590,35 @@
       } catch (e) { showErr(e.message); }
       finally { b.disabled = false; b.textContent = '📲 Envoyer sur WhatsApp'; }
     });
+
+    // ---- Édition client (nom / téléphone / email) ----
+    let editClientId = null;
+    function openEditClient(id, nom, phone, email) {
+      if (!id) { showErr("Client introuvable pour l'édition."); return; }
+      editClientId = id;
+      $('e-nom').value = nom || ''; $('e-tel').value = phone || ''; $('e-email').value = email || '';
+      $('edit-err').style.display = 'none';
+      $('edit-modal').style.display = 'flex';
+    }
+    $('edit-close').addEventListener('click', () => $('edit-modal').style.display = 'none');
+    $('edit-cancel').addEventListener('click', () => $('edit-modal').style.display = 'none');
+    $('edit-modal').addEventListener('click', (e) => { if (e.target === $('edit-modal')) $('edit-modal').style.display = 'none'; });
+    $('edit-save').addEventListener('click', async () => {
+      if (!editClientId) return;
+      const nom = $('e-nom').value.trim();
+      if (!nom) { $('edit-err').textContent = 'Le nom est requis'; $('edit-err').style.display = 'block'; return; }
+      const b = $('edit-save'); b.disabled = true;
+      try {
+        await api('console-action', { action: 'edit_client', clientId: editClientId, nom, phone: $('e-tel').value.trim(), email: $('e-email').value.trim() });
+        toast('Client mis à jour ✅');
+        $('edit-modal').style.display = 'none';
+        allClients = [];
+        if (lastLookup) lookup(lastLookup);
+        if ($('tab-clients').style.display !== 'none') loadClients(true);
+      } catch (e) { $('edit-err').textContent = e.message; $('edit-err').style.display = 'block'; }
+      finally { b.disabled = false; }
+    });
+
     function priceForForm() {
       const s = SVC.find(x => x.id === $('f-svc').value);
       if (!s) return 0;
@@ -547,7 +647,7 @@
       try {
         const d = await api('console-action', {
           action: 'create_resa', nom, phone: $('f-tel').value.trim(),
-          serviceId, date, heure, duree: $('f-duree').value, paiement: fPay,
+          serviceId, date, heure: heureToHHMM(heure), duree: $('f-duree').value, paiement: fPay,
         });
         toast('Résa créée ✅ ' + d.ref);
         $('f-nom').value = ''; $('f-heure').value = '';
@@ -591,12 +691,17 @@
             <div class="cli-meta">${c.phone || 'sans numéro'} · ${c.seances || 0} séance${(c.seances || 0) > 1 ? 's' : ''} · ${c.points || 0}/5 pts${dispo > 0 ? ` · 🎁 ${dispo}` : ''}</div>
           </div>
           <span class="cli-badge" style="color:${col};border-color:${col}55;">${c.tier || 'Bronze'}</span>
+          <button class="cli-edit" data-id="${c.id}" data-nom="${(c.nom || '').replace(/"/g, '&quot;')}" data-phone="${(c.phone || '').replace(/"/g, '&quot;')}" data-email="${(c.email || '').replace(/"/g, '&quot;')}" style="background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:8px 10px;font-size:14px;flex:0 0 auto;cursor:pointer;margin-left:6px;">✏️</button>
         </div>`;
       }).join('');
       document.querySelectorAll('#cli-body .cliitem').forEach(el => el.addEventListener('click', () => {
         const phone = el.dataset.phone;
         if (phone) lookup({ phone });
-        else showErr('Ce client n\'a pas de numéro — cherche-le autrement.');
+        else showErr('Ce client n\'a pas de numéro — utilise ✏️ pour lui en ajouter un.');
+      }));
+      document.querySelectorAll('#cli-body .cli-edit').forEach(b => b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEditClient(b.dataset.id, b.dataset.nom, b.dataset.phone, b.dataset.email);
       }));
     }
 
@@ -688,6 +793,7 @@
       }));
       document.querySelectorAll('[data-open-phone]').forEach(b => b.addEventListener('click', () => lookup({ phone: b.dataset.openPhone })));
       document.querySelectorAll('[data-card-nom]').forEach(b => b.addEventListener('click', () => showCardPanel(b.dataset.cardNom, b.dataset.cardPhone, b.dataset.cardUrl || null)));
+      document.querySelectorAll('[data-edit-id]').forEach(b => b.addEventListener('click', () => openEditClient(b.dataset.editId, b.dataset.editNom, b.dataset.editPhone, b.dataset.editEmail)));
     }
 
     // Auto-open si PIN déjà en session

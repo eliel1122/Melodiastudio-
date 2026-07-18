@@ -23,12 +23,12 @@
       min: 0,
       max: 4,
       remise: 0,
+      hourPrice: 25000,
       tagline: 'Bienvenue dans la family',
       benefits: [
-        { icon: '01', html: '<b>1 séance offerte</b> toutes les 5 réservations' },
-        { icon: '02', html: '<b>1 point offert</b> à l\'inscription' },
-        { icon: '03', html: 'Accès à la <b>newsletter Melodia</b>' },
-        { icon: '04', html: 'Carte digitale <b>QR</b> scannable au studio' }
+        { icon: '01', html: '<b>1 point offert</b> à l\'inscription' },
+        { icon: '02', html: '<b>1 séance offerte</b> toutes les 5 réservations' },
+        { icon: '03', html: 'Carte digitale <b>QR</b> scannable au studio' }
       ]
     },
     argent: {
@@ -36,57 +36,52 @@
       name: 'Argent',
       color: '#B8C5D6',
       min: 5,
-      max: 14,
-      remise: 5,
+      max: 9,
+      remise: 0,
+      hourPrice: 22500,
       tagline: 'Tu fais partie des réguliers',
       benefits: [
-        { icon: '01', html: '<b>−5%</b> sur tous les services à la carte' },
-        { icon: '02', html: '<b>1 séance offerte</b> toutes les 5' },
-        { icon: '03', html: 'Accès <b>playlist privée Spotify "Made at Melodia"</b>' },
-        { icon: '04', html: '<b>Réservation prioritaire</b> créneaux week-end (annonce 48h avant)' },
-        { icon: '05', html: 'Invitation aux <b>écoutes privées</b> mensuelles' }
+        { icon: '01', html: 'Tous les avantages <b>Bronze</b>' },
+        { icon: '02', html: '<b>Playlist privée Spotify</b> "Made at Melodia"' },
+        { icon: '03', html: '<b>Heure de studio à 22 500 F</b> (au lieu de 25 000)' }
       ]
     },
     gold: {
       key: 'gold',
       name: 'Gold',
       color: '#E5B544',
-      min: 15,
-      max: 29,
-      remise: 10,
+      min: 10,
+      max: 19,
+      remise: 0,
+      hourPrice: 20000,
       tagline: 'Tu as le son de la maison',
       benefits: [
-        { icon: '01', html: '<b>−10%</b> sur tous les services et packs' },
-        { icon: '02', html: '<b>1 cover art offert par an</b> (valeur 30 000 FCFA)' },
-        { icon: '03', html: '<b>Mastering livré en 24h</b> max' },
-        { icon: '04', html: 'Invitation à la <b>soirée studio annuelle</b> Melodia (+1 invité)' },
-        { icon: '05', html: 'Apparition possible sur la <b>playlist hero "Made at Melodia"</b>' },
-        { icon: '06', html: 'Tous les avantages <b>Argent</b> inclus' }
+        { icon: '01', html: 'Tous les avantages <b>Argent</b>' },
+        { icon: '02', html: '<b>1 session offerte chaque mois</b>' },
+        { icon: '03', html: '<b>Séance d\'écoute privée</b>' },
+        { icon: '04', html: '<b>Heure de studio à 20 000 F</b>' }
       ]
     },
     platinum: {
       key: 'platinum',
       name: 'Platinum',
       color: '#E5E4E2',
-      min: 30,
+      min: 20,
       max: Infinity,
-      remise: 15,
+      remise: 0,
+      hourPrice: 20000,
       tagline: 'Tu fais l\'histoire avec nous',
       benefits: [
-        { icon: '01', html: '<b>−15%</b> sur tous les services et packs' },
-        { icon: '02', html: '<b>1 session studio entière offerte chaque année</b> (jusqu\'à 200 000 FCFA)' },
-        { icon: '03', html: '<b>Cover art + visualizer AI offerts</b> à chaque album sorti' },
-        { icon: '04', html: 'Possibilité de <b>featuring sur compilation Melodia</b> annuelle' },
-        { icon: '05', html: '<b>Contact direct fondateur</b> (WhatsApp privé, hors horaires)' },
-        { icon: '06', html: 'Invitations <b>VIP événements Melodia</b> + accès backstage' },
-        { icon: '07', html: 'Tous les avantages <b>Gold</b> inclus' }
+        { icon: '01', html: 'Tous les avantages <b>Gold</b>' },
+        { icon: '02', html: '<b>2 sessions offertes chaque mois</b>' },
+        { icon: '03', html: '<b>Cover art + visualizer AI offerts</b> à chaque album' }
       ]
     }
   };
 
   function getTier(seancesTotales) {
-    if (seancesTotales >= 30) return TIERS.platinum;
-    if (seancesTotales >= 15) return TIERS.gold;
+    if (seancesTotales >= 20) return TIERS.platinum;
+    if (seancesTotales >= 10) return TIERS.gold;
     if (seancesTotales >= 5)  return TIERS.argent;
     return TIERS.bronze;
   }

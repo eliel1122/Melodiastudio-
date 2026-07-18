@@ -421,8 +421,9 @@ main { position: relative; z-index: 1; }
 }
 .cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 380px));
   gap: var(--space-5);
+  justify-content: center;
 }
 .card {
   padding: var(--space-7);

@@ -136,7 +136,7 @@ const DEPOSIT_BY_SERVICE = {
 const PRICES = {
   'rec': 25000, 'mix': 150000, 'master': 75000, 'prod': 100000, 'vo': 40000,
   'pack': 180000, 'pack-silver': 40000, 'pack-gold': 180000, 'pack-platinium': 280000,
-  'da': 30000, 'clip': 30000, 'loc-studio': 35000, 'loc-sono': 0,
+  'da': 0, 'clip': 30000, 'loc-studio': 35000, 'loc-sono': 0,
   'jam': 0, 'rec-hour': 25000,
 };
 const TUESDAY_HOUR_PRICE = 15000;

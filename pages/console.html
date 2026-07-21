@@ -86,9 +86,16 @@
     .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
     .cal-head div { text-align:center; font-size:10px; color:var(--dim); font-family:'JetBrains Mono',monospace; padding:2px 0; }
     .cal-day { position:relative; aspect-ratio:1; display:flex; align-items:center; justify-content:center; font-size:13px; border-radius:8px; border:1px solid transparent; color:var(--dim); }
-    .cal-day.has { background:rgba(30,144,255,.15); border-color:rgba(30,144,255,.4); color:var(--fg); font-weight:600; }
+    .cal-day.has { background:rgba(30,144,255,.15); border-color:rgba(30,144,255,.4); color:var(--fg); font-weight:600; cursor:pointer; }
+    .cal-day.has:active { transform:scale(.92); }
     .cal-day.today { border-color:var(--accent); }
     .cal-n { position:absolute; top:2px; right:4px; font-size:9px; color:var(--accent); font-weight:700; }
+    .day-resa { display:flex; align-items:center; gap:10px; padding:12px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+    .day-resa:last-child { border-bottom:none; }
+    .day-resa:active { opacity:.55; }
+    .day-resa .dr-main { flex:1; min-width:0; }
+    .day-resa .dr-t { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .day-resa .dr-s { font-size:12px; color:var(--dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .cli-row { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14px; }
     .cli-row:last-child { border-bottom:none; }
     .cli-rank { font-family:Anton,sans-serif; font-size:15px; color:var(--accent); width:22px; }
@@ -291,6 +298,17 @@
         <button class="btn ok" id="edit-save">💾 Enregistrer</button>
         <button class="btn ghost" id="edit-cancel">Annuler</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal réservations du jour (calendrier) -->
+  <div id="day-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:60;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;max-width:460px;width:100%;max-height:80vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <p class="eyebrow">📅 <span id="day-title"></span></p>
+        <button class="btn ghost" id="day-close" style="width:auto;padding:6px 12px;font-size:13px;">✕</button>
+      </div>
+      <div id="day-body"></div>
     </div>
   </div>
 
@@ -800,6 +818,36 @@
       const p = document.getElementById('cal-prev'), n = document.getElementById('cal-next');
       if (p) p.addEventListener('click', () => { calYM.m--; if (calYM.m < 0) { calYM.m = 11; calYM.y--; } mountCalendar(); });
       if (n) n.addEventListener('click', () => { calYM.m++; if (calYM.m > 11) { calYM.m = 0; calYM.y++; } mountCalendar(); });
+      mount.querySelectorAll('.cal-day.has').forEach(el => el.addEventListener('click', () => openDayModal(el.dataset.iso)));
+    }
+
+    // ---- Réservations d'un jour (clic sur le calendrier) ----
+    const fmtDateLong = (iso) => { const d = new Date(iso + 'T00:00:00'); if (isNaN(d)) return iso;
+      return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
+    $('day-close').addEventListener('click', () => { $('day-modal').style.display = 'none'; });
+    $('day-modal').addEventListener('click', (e) => { if (e.target === $('day-modal')) $('day-modal').style.display = 'none'; });
+    async function openDayModal(iso) {
+      $('day-title').textContent = fmtDateLong(iso);
+      $('day-body').innerHTML = '<div class="list-empty">Chargement…</div>';
+      $('day-modal').style.display = 'flex';
+      try { await loadList(); } catch (e) { $('day-body').innerHTML = '<div class="list-empty">Erreur de chargement.</div>'; return; }
+      const rows = allResas.filter(r => r.date === iso)
+        .sort((a, b) => heureToHHMM(a.heure).localeCompare(heureToHHMM(b.heure)));
+      if (!rows.length) { $('day-body').innerHTML = '<div class="list-empty">Aucune réservation ce jour.</div>'; return; }
+      $('day-body').innerHTML = rows.map(r => `
+        <div class="day-resa" data-ref="${r.ref || ''}">
+          <div class="dr-main">
+            <div class="dr-t">${r.heure ? fmtHeure(r.heure) + ' · ' : ''}${r.service || 'Session'}</div>
+            <div class="dr-s">${r.clientNom || 'Client'}${r.solde ? ' · solde ' + fmtF(r.solde) : ''}</div>
+          </div>
+          ${statutPill(r.statut)}
+        </div>`).join('');
+      $('day-body').querySelectorAll('.day-resa').forEach(el => el.addEventListener('click', () => {
+        const ref = el.dataset.ref; if (!ref) return;
+        $('day-modal').style.display = 'none';
+        lookup({ ref });
+        setTimeout(() => $('result').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+      }));
     }
     function renderCalendar() {
       const booked = (dashData && dashData.bookedDays) || {};
@@ -813,7 +861,7 @@
       for (let dd = 1; dd <= nbDays; dd++) {
         const iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
         const nb = booked[iso] || 0;
-        cells += '<div class="cal-day' + (nb ? ' has' : '') + (iso === todayISO ? ' today' : '') + '">' + dd + (nb ? '<span class="cal-n">' + nb + '</span>' : '') + '</div>';
+        cells += '<div class="cal-day' + (nb ? ' has' : '') + (iso === todayISO ? ' today' : '') + '" data-iso="' + iso + '">' + dd + (nb ? '<span class="cal-n">' + nb + '</span>' : '') + '</div>';
       }
       return '<div class="dash-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
         '<button class="btn ghost" id="cal-prev" style="width:auto;padding:6px 14px;">‹</button>' +

@@ -178,6 +178,10 @@
             <button type="button" class="btn ghost pay-opt" data-pay="acompte">Acompte</button>
             <button type="button" class="btn ghost pay-opt" data-pay="total">Payé total</button>
           </div>
+          <div id="f-acompte-wrap" style="margin-top:10px;">
+            <label>Montant de l'acompte (F) — vide = 2 500 par défaut</label>
+            <input id="f-acompte" type="number" min="0" placeholder="2500" />
+          </div>
           <div id="f-price" class="muted" style="margin-top:10px;text-align:center;"></div>
           <div style="height:12px;"></div>
           <div class="row">
@@ -572,6 +576,7 @@
       $('f-svc').addEventListener('change', () => { const s = SVC.find(x => x.id === $('f-svc').value); $('f-duree-wrap').style.display = s && s.hourly ? 'block' : 'none'; refreshPrice(); });
       $('f-duree').addEventListener('input', refreshPrice);
       $('f-date').addEventListener('change', refreshPrice);
+      $('f-acompte').addEventListener('input', refreshPrice);
       document.querySelectorAll('.pay-opt').forEach(b => b.addEventListener('click', () => {
         fPay = b.dataset.pay;
         document.querySelectorAll('.pay-opt').forEach(x => x.classList.remove('sel'));
@@ -653,7 +658,9 @@
     }
     function refreshPrice() {
       const price = priceForForm();
-      const acompte = Math.min(2500, price);
+      const custom = parseInt($('f-acompte').value, 10);
+      const acompte = (custom > 0) ? Math.min(custom, price || custom) : Math.min(2500, price);
+      if ($('f-acompte-wrap')) $('f-acompte-wrap').style.display = fPay === 'acompte' ? 'block' : 'none';
       $('f-price').innerHTML = fPay === 'total'
         ? `Total à encaisser : <b style="color:var(--fg)">${fmtF(price)}</b>`
         : `Acompte : <b style="color:var(--fg)">${fmtF(acompte)}</b> · solde ${fmtF(price - acompte)}`;
@@ -670,6 +677,7 @@
         const d = await api('console-action', {
           action: 'create_resa', nom, phone: $('f-tel').value.trim(),
           serviceId, date, heure: heureToHHMM(heure), duree: $('f-duree').value, paiement: fPay,
+          montantAcompte: $('f-acompte').value,
         });
         toast('Résa créée ✅ ' + d.ref);
         $('f-nom').value = ''; $('f-heure').value = '';

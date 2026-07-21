@@ -114,11 +114,13 @@ async function createResa(p) {
   if (!label) return jsonResponse(400, { error: 'Service inconnu' });
 
   const price = fullPriceFor(serviceId, date, p.duree);
-  const acompte = Math.min(depositFor(serviceId), price || depositFor(serviceId));
+  const defaultAcompte = Math.min(depositFor(serviceId), price || depositFor(serviceId));
+  const customAcompte = parseInt(p.montantAcompte, 10);
+  const acompte = (customAcompte > 0) ? Math.min(customAcompte, price || customAcompte) : defaultAcompte;
   const choice = p.paiement === 'total' ? 'total' : 'acompte';
   const statut = choice === 'total' ? 'Soldée' : 'Confirmée';
   const paid = choice === 'total' ? price : acompte;
-  const solde = choice === 'total' ? 0 : Math.max(0, price - acompte);
+  const solde = choice === 'total' ? 0 : Math.max(0, price - paid);
   const ref = generateRef();
 
   const clientId = await findOrCreateClientConsole(p.nom, p.phone);

@@ -83,6 +83,12 @@
     .dash-card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-top:12px; }
     .dash-card h3 { font-family:Anton,sans-serif; font-size:16px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:12px; color:var(--fg); font-weight:400; }
     .chart-box { position:relative; height:200px; }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+    .cal-head div { text-align:center; font-size:10px; color:var(--dim); font-family:'JetBrains Mono',monospace; padding:2px 0; }
+    .cal-day { position:relative; aspect-ratio:1; display:flex; align-items:center; justify-content:center; font-size:13px; border-radius:8px; border:1px solid transparent; color:var(--dim); }
+    .cal-day.has { background:rgba(30,144,255,.15); border-color:rgba(30,144,255,.4); color:var(--fg); font-weight:600; }
+    .cal-day.today { border-color:var(--accent); }
+    .cal-n { position:absolute; top:2px; right:4px; font-size:9px; color:var(--accent); font-weight:700; }
     .cli-row { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14px; }
     .cli-row:last-child { border-bottom:none; }
     .cli-rank { font-family:Anton,sans-serif; font-size:15px; color:var(--accent); width:22px; }
@@ -769,6 +775,7 @@
           <div class="kpi"><div class="k-lbl">Avances Paystack</div><div class="k-val">${kf(k.paystackAvance)} F</div><div class="k-sub">encaisse en ligne</div></div>
         </div>
 
+        <div id="cal-mount"></div>
         <div class="dash-card"><h3>📈 CA · 30 derniers jours</h3><div class="chart-box"><canvas id="c-daily"></canvas></div></div>
         <div class="dash-card"><h3>🎙️ Services les plus demandés</h3><div class="chart-box"><canvas id="c-serv"></canvas></div></div>
         <div class="dash-card"><h3>📅 Jours les plus chargés</h3><div class="chart-box"><canvas id="c-wday"></canvas></div></div>
@@ -781,6 +788,39 @@
             </div>`).join('') : '<div class="list-empty">Pas encore de données.</div>'}
         </div>`;
       drawCharts();
+      mountCalendar();
+    }
+
+    let calYM = null;
+    function mountCalendar() {
+      const mount = $('cal-mount'); if (!mount) return;
+      const now = new Date();
+      if (!calYM) calYM = { y: now.getFullYear(), m: now.getMonth() };
+      mount.innerHTML = renderCalendar();
+      const p = document.getElementById('cal-prev'), n = document.getElementById('cal-next');
+      if (p) p.addEventListener('click', () => { calYM.m--; if (calYM.m < 0) { calYM.m = 11; calYM.y--; } mountCalendar(); });
+      if (n) n.addEventListener('click', () => { calYM.m++; if (calYM.m > 11) { calYM.m = 0; calYM.y++; } mountCalendar(); });
+    }
+    function renderCalendar() {
+      const booked = (dashData && dashData.bookedDays) || {};
+      const y = calYM.y, m = calYM.m;
+      const moisFR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+      const startDow = (new Date(y, m, 1).getDay() + 6) % 7;
+      const nbDays = new Date(y, m + 1, 0).getDate();
+      const todayISO = new Date().toISOString().slice(0, 10);
+      let cells = '';
+      for (let i = 0; i < startDow; i++) cells += '<div></div>';
+      for (let dd = 1; dd <= nbDays; dd++) {
+        const iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+        const nb = booked[iso] || 0;
+        cells += '<div class="cal-day' + (nb ? ' has' : '') + (iso === todayISO ? ' today' : '') + '">' + dd + (nb ? '<span class="cal-n">' + nb + '</span>' : '') + '</div>';
+      }
+      return '<div class="dash-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+        '<button class="btn ghost" id="cal-prev" style="width:auto;padding:6px 14px;">‹</button>' +
+        '<h3 style="margin:0;">📅 ' + moisFR[m] + ' ' + y + '</h3>' +
+        '<button class="btn ghost" id="cal-next" style="width:auto;padding:6px 14px;">›</button></div>' +
+        '<div class="cal-grid cal-head"><div>L</div><div>M</div><div>M</div><div>J</div><div>V</div><div>S</div><div>D</div></div>' +
+        '<div class="cal-grid">' + cells + '</div></div>';
     }
 
     const AX = { grid: { color: 'rgba(255,255,255,.06)' }, ticks: { color: '#8a8a99', font: { size: 10 } } };

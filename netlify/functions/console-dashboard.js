@@ -94,6 +94,7 @@ function aggregate(recs) {
   const byClient = {};   // nom → {count, ca}
   const byWeekday = [0, 0, 0, 0, 0, 0, 0]; // Lun..Dim (count)
   const dailyMap = {};   // date → ca (30 derniers jours)
+  const bookedDays = {};  // date → nb de résas actives (calendrier)
 
   // 30 derniers jours (init à 0 pour une courbe continue)
   for (let i = 29; i >= 0; i--) {
@@ -115,6 +116,7 @@ function aggregate(recs) {
       const pid = LABEL_TO_ID[f['Service']] || 'rec';
       paystackAvance += /total/i.test(mode) ? fullPrice(f) : Math.min(depositFor(pid), fullPrice(f));
     }
+    if (['En attente', 'Confirmée', 'Soldée', 'Terminée'].includes(statut)) bookedDays[date] = (bookedDays[date] || 0) + 1;
 
     caTotal += ca;
     if (date === todayISO) caToday += ca;
@@ -153,6 +155,6 @@ function aggregate(recs) {
       panierMoyen: paidCount ? Math.round(caTotal / paidCount) : 0,
       totalResas: recs.length,
     },
-    services, topClients, weekday, daily,
+    services, topClients, weekday, daily, bookedDays,
   };
 }

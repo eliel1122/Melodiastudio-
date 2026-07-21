@@ -128,6 +128,7 @@
         <div class="tab" data-tab="list">📋 Résas</div>
         <div class="tab" data-tab="clients">👥 Clients</div>
         <div class="tab" data-tab="dash">📊 Stats</div>
+        <div class="tab" data-tab="block">🚫 Bloqués</div>
       </div>
 
       <div id="tab-scan" class="card">
@@ -215,6 +216,25 @@
           <button class="btn ghost" id="dash-refresh" style="width:auto;padding:8px 14px;font-size:13px;">↻</button>
         </div>
         <div id="dash-body"></div>
+      </div>
+
+      <div id="tab-block" class="card" style="display:none;">
+        <p class="eyebrow">Bloquer des créneaux</p>
+        <p class="muted" style="margin:6px 0 12px;">Rends des heures indisponibles (ex : dimanche matin, repos, maintenance). Le bot et le site ne les proposeront plus à la réservation.</p>
+        <label>Date</label>
+        <input id="b-date" type="date" />
+        <div class="row" style="margin-top:10px;gap:16px;">
+          <div><label>De</label><input id="b-debut" type="time" value="09:00" /></div>
+          <div><label>À</label><input id="b-fin" type="time" value="13:00" /></div>
+        </div>
+        <div style="height:10px;"></div>
+        <label>Raison (facultatif)</label>
+        <input id="b-raison" type="text" placeholder="Ex : repos, maintenance…" />
+        <div style="height:12px;"></div>
+        <button class="btn" id="b-submit">🚫 Bloquer ce créneau</button>
+        <div style="height:18px;"></div>
+        <p class="eyebrow" style="margin-bottom:8px;">Créneaux bloqués à venir</p>
+        <div id="block-list"></div>
       </div>
 
       <div id="result"></div>
@@ -329,10 +349,12 @@
       $('tab-list').style.display = tab === 'list' ? 'block' : 'none';
       $('tab-clients').style.display = tab === 'clients' ? 'block' : 'none';
       $('tab-dash').style.display = tab === 'dash' ? 'block' : 'none';
+      $('tab-block').style.display = tab === 'block' ? 'block' : 'none';
       if (tab === 'scan') startScanner(); else stopScanner();
       if (tab === 'list') loadList();
       if (tab === 'clients') loadClients();
       if (tab === 'dash') loadDash();
+      if (tab === 'block') loadBlocks();
     }));
 
     // ---- Scanner ----
@@ -736,6 +758,7 @@
           <div class="kpi"><div class="k-lbl">Aujourd'hui</div><div class="k-val">${kf(k.caToday)} F</div></div>
           <div class="kpi"><div class="k-lbl">Panier moyen</div><div class="k-val">${kf(k.panierMoyen)} F</div></div>
           <div class="kpi"><div class="k-lbl">Sessions à venir</div><div class="k-val">${k.aVenir}</div></div>
+          <div class="kpi"><div class="k-lbl">Avances Paystack</div><div class="k-val">${kf(k.paystackAvance)} F</div><div class="k-sub">encaisse en ligne</div></div>
         </div>
 
         <div class="dash-card"><h3>📈 CA · 30 derniers jours</h3><div class="chart-box"><canvas id="c-daily"></canvas></div></div>
@@ -795,6 +818,34 @@
       document.querySelectorAll('[data-card-nom]').forEach(b => b.addEventListener('click', () => showCardPanel(b.dataset.cardNom, b.dataset.cardPhone, b.dataset.cardUrl || null)));
       document.querySelectorAll('[data-edit-id]').forEach(b => b.addEventListener('click', () => openEditClient(b.dataset.editId, b.dataset.editNom, b.dataset.editPhone, b.dataset.editEmail)));
     }
+
+    // ---- Créneaux bloqués ----
+    async function loadBlocks() {
+      $('block-list').innerHTML = '<div class="list-empty">Chargement…</div>';
+      try {
+        const d = await api('console-action', { action: 'list_blocks' });
+        const bl = d.blocks || [];
+        $('block-list').innerHTML = bl.length ? bl.map(b => `
+          <div class="kv">
+            <span>${fmtDate(b.date)} · ${b.debut}–${b.fin}${b.raison ? ' · ' + b.raison : ''}</span>
+            <button class="btn danger" data-del-block="${b.id}" style="width:auto;padding:6px 10px;font-size:12px;">🗑</button>
+          </div>`).join('') : '<div class="list-empty">Aucun créneau bloqué à venir.</div>';
+        document.querySelectorAll('[data-del-block]').forEach(x => x.addEventListener('click', async () => {
+          x.disabled = true;
+          try { await api('console-action', { action: 'delete_block', id: x.dataset.delBlock }); toast('Créneau débloqué ✅'); loadBlocks(); }
+          catch (e) { showErr(e.message); x.disabled = false; }
+        }));
+      } catch (e) { $('block-list').innerHTML = ''; showErr(e.message); }
+    }
+    $('b-submit').addEventListener('click', async () => {
+      const date = $('b-date').value, debut = $('b-debut').value, fin = $('b-fin').value;
+      if (!date || !debut || !fin) { showErr('Date, début et fin requis'); return; }
+      const b = $('b-submit'); b.disabled = true;
+      try {
+        await api('console-action', { action: 'block_slot', date, heureDebut: debut, heureFin: fin, raison: $('b-raison').value.trim() });
+        toast('Créneau bloqué 🚫'); $('b-raison').value = ''; loadBlocks();
+      } catch (e) { showErr(e.message); } finally { b.disabled = false; }
+    });
 
     // Auto-open si PIN déjà en session
     if (PIN) openApp();

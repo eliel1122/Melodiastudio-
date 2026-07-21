@@ -31,6 +31,9 @@ exports.handler = async (event) => {
       case 'edit_client':    return await editClient(p);
       case 'fidelity_delta': return await fidelityDelta(p.clientId, parseInt(p.delta, 10) || 0);
       case 'use_free':       return await useFreeSession(p.clientId);
+      case 'block_slot':     return await blockSlot(p);
+      case 'list_blocks':    return await listBlocks();
+      case 'delete_block':   return await deleteBlock(p.id);
       default:               return jsonResponse(400, { error: 'Action inconnue' });
     }
   } catch (e) {
@@ -268,6 +271,42 @@ async function useFreeSession(clientId) {
   if (gagnees - utilisees <= 0) return jsonResponse(400, { error: 'Aucune séance offerte disponible' });
   await patchResilient(`${airtableTable(TABLES.CLIENTS)}/${clientId}`, { 'Sessions offertes utilisées': utilisees + 1 });
   return jsonResponse(200, { ok: true, offertesDispo: gagnees - utilisees - 1 });
+}
+
+// ---- Créneaux bloqués (indisponibilités manuelles : repos, maintenance…) ----
+// Écrit dans la table Airtable 'Créneaux bloqués' que get-availability lit déjà.
+async function blockSlot(p) {
+  const date = p.date, debut = p.heureDebut, fin = p.heureFin;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return jsonResponse(400, { error: 'Date invalide (YYYY-MM-DD)' });
+  if (!/^\d{1,2}:\d{2}$/.test(debut || '') || !/^\d{1,2}:\d{2}$/.test(fin || '')) return jsonResponse(400, { error: 'Heures invalides (HH:MM)' });
+  if (fin <= debut) return jsonResponse(400, { error: "L'heure de fin doit être après le début" });
+  const rec = await airtable(`${airtableTable(TABLES.BLOQUES)}`, {
+    method: 'POST',
+    body: JSON.stringify({ fields: { 'Date': date, 'Heure début': debut, 'Heure fin': fin, 'Raison': (p.raison || 'Bloqué').slice(0, 120) }, typecast: true }),
+  });
+  return jsonResponse(200, { ok: true, id: rec.id });
+}
+
+async function listBlocks() {
+  const today = new Date().toISOString().slice(0, 10);
+  const res = await airtable(`${airtableTable(TABLES.BLOQUES)}?pageSize=100`, { method: 'GET' }).catch(() => ({ records: [] }));
+  const blocks = (res.records || [])
+    .map((r) => ({
+      id: r.id,
+      date: String(r.fields['Date'] || '').slice(0, 10),
+      debut: r.fields['Heure début'] || '',
+      fin: r.fields['Heure fin'] || '',
+      raison: r.fields['Raison'] || '',
+    }))
+    .filter((b) => b.date && b.date >= today)
+    .sort((a, b) => (a.date + a.debut).localeCompare(b.date + b.debut));
+  return jsonResponse(200, { ok: true, blocks });
+}
+
+async function deleteBlock(id) {
+  if (!id) return jsonResponse(400, { error: 'id requis' });
+  await airtable(`${airtableTable(TABLES.BLOQUES)}/${id}`, { method: 'DELETE' });
+  return jsonResponse(200, { ok: true });
 }
 
 // Cœur fidélité : applique un delta de points, gère le passage de tier + séance offerte

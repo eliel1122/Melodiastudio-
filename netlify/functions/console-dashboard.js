@@ -88,6 +88,7 @@ function aggregate(recs) {
   const mondayISO = monday.toISOString().slice(0, 10);
 
   let caToday = 0, caWeek = 0, caMonth = 0, caTotal = 0;
+  let paystackAvance = 0; // argent réellement entré sur Paystack (acomptes/paiements en ligne)
   let resaMonth = 0, aVenir = 0, paidCount = 0;
   const byService = {}; // label → {count, ca}
   const byClient = {};   // nom → {count, ca}
@@ -107,6 +108,13 @@ function aggregate(recs) {
     const ca = collected(f);
     const statut = f['Statut'];
     const counts = ['Confirmée', 'Soldée', 'Terminée'].includes(statut);
+
+    // Argent réellement entré sur Paystack (le solde est souvent encaissé au studio via Wave)
+    const mode = String(f['Mode paiement'] || '');
+    if (/^Paystack/i.test(mode)) {
+      const pid = LABEL_TO_ID[f['Service']] || 'rec';
+      paystackAvance += /total/i.test(mode) ? fullPrice(f) : Math.min(depositFor(pid), fullPrice(f));
+    }
 
     caTotal += ca;
     if (date === todayISO) caToday += ca;
@@ -140,6 +148,7 @@ function aggregate(recs) {
   return {
     kpis: {
       caToday, caWeek, caMonth, caTotal,
+      paystackAvance,
       resaMonth, aVenir,
       panierMoyen: paidCount ? Math.round(caTotal / paidCount) : 0,
       totalResas: recs.length,

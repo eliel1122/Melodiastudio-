@@ -125,25 +125,47 @@ async function handleMessage(msg, contact) {
 }
 
 async function routeText(from, name, text) {
-  // Mots-clés naturels → actions
-  if (/^(bonjour|salut|hello|hi|hey|coucou|menu|start|commencer)/i.test(text)) {
+  // NB : les clics de menu (listes/boutons) passent par routeAction. Ici = TEXTE tapé.
+  // On ne répond automatiquement QUE pour : salutation/menu, tarifs, localisation, contact.
+  // Tout le reste → pas de spam : on invite à laisser une note vocale (+ bouton menu).
+
+  // Salutation / menu → affiche le menu (point d'entrée)
+  if (/(^|\s)(menu|bonjour|bonsoir|salut|coucou|hello|hi|hey|start|commencer|d[ée]but)/i.test(text)) {
     return await sendMainMenu(from, name);
   }
-  if (/(tarif|prix|combien|cout)/i.test(text)) return await routeAction(from, name, 'TARIFS');
-  if (/(reserv|book|booking|seance)/i.test(text)) return await routeAction(from, name, 'RESERVER');
-  if (/(adresse|où|ou|map|location|venir)/i.test(text)) return await routeAction(from, name, 'ADRESSE');
-  if (/(fidelit|carte|point)/i.test(text)) return await routeAction(from, name, 'FID_CARTE');
-  if (/(visit|tour|voir le studio)/i.test(text)) return await routeAction(from, name, 'VISITE');
-  if (/(devis|projet|budget)/i.test(text)) return await routeAction(from, name, 'DEVIS');
-  if (/(insta|facebook|tiktok|reseau|réseau|suivre)/i.test(text)) return await routeAction(from, name, 'RESEAUX');
-  if (/(contact|joindre|telephone|email)/i.test(text)) return await routeAction(from, name, 'CONTACT');
-  // Message libre "réel" (probable demande de devis / question) → on le transmet au Boss.
-  if (text.length > 12 && /\s/.test(text)) {
-    await sendWhatsApp(`💬 MESSAGE CLIENT (WhatsApp)\n${name} (+${from}) :\n${text.slice(0, 400)}`).catch(() => {});
-    return await sendText(from, `Bien reçu ${name} 🙏 On revient vers toi très vite. En attendant, tape *menu* pour réserver ou voir les tarifs.`);
+  // Tarifs
+  if (/(tarif|prix|combien|cout|coût|coute|coûte|prestation)/i.test(text)) {
+    return await sendTarifs(from);
   }
-  // Default : menu
-  return await sendMainMenu(from, name);
+  // Localisation
+  if (/(adresse|localis|itin[ée]raire|google ?map|( |^)maps?( |$)|situ[ée]|comment (venir|y aller|aller)|c'?est o[uù]|o[uù] est|o[uù] [êe]tes|vous [êe]tes o[uù]|vous situez|venir au studio)/i.test(text)) {
+    return await sendAdresse(from);
+  }
+  // Contact
+  if (/(contact|joindre|num[ée]ro|t[ée]l[ée]phone|vous appeler|appeler|parler (a|à|avec)|un agent|agent|quelqu'?un|humain)/i.test(text)) {
+    return await sendContact(from);
+  }
+  // Tout le reste → PAS de spam : note vocale + bouton menu, et on notifie le Boss du message.
+  await sendWhatsApp(`💬 MESSAGE CLIENT (WhatsApp)\n${name} (+${from}) :\n${String(text).slice(0, 400)}`).catch(() => {});
+  return await promptVoiceNote(from);
+}
+
+// Réponse quand l'intention n'est pas tarifs/localisation/contact : on n'envoie plus
+// les infos au hasard, on invite à une note vocale (qu'un humain traitera) + bouton menu.
+async function promptVoiceNote(from) {
+  return await callMeta(from, {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text:
+        `🤖 Ici c'est le *bot de réservation* Melodia.\n\n` +
+        `Pour une question ou une demande particulière, laisse-nous une *note vocale* 🎤 — un humain te répond vite.\n\n` +
+        `Sinon, tout est dans le menu 👇` },
+      action: { buttons: [
+        { type: 'reply', reply: { id: 'MENU', title: '📋 Voir le menu' } },
+      ]},
+    },
+  });
 }
 
 async function routeAction(from, name, actionId) {
@@ -415,8 +437,8 @@ async function sendAdresse(from) {
   await callMeta(from, {
     type: 'location',
     location: {
-      latitude: 5.378015,
-      longitude: -3.940415,
+      latitude: 5.3294,
+      longitude: -3.9531,
       name: 'Melodia Studio',
       address: 'Cocody Riviera 4 M\'pouto - La harpe mélodieuse',
     },

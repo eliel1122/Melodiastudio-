@@ -133,6 +133,10 @@ async function routeText(from, name, text) {
   if (/(^|\s)(menu|bonjour|bonsoir|salut|coucou|hello|hi|hey|start|commencer|d[ée]but)/i.test(text)) {
     return await sendMainMenu(from, name);
   }
+  // Réservation -> relance le tunnel (fonction coeur du bot)
+  if (/(r[ée]serv|rendez|rdv|cr[ée]neau|booking|s[ée]ance)/i.test(text)) {
+    return await sendReserverFlow(from);
+  }
   // Tarifs
   if (/(tarif|prix|combien|cout|coût|coute|coûte|prestation)/i.test(text)) {
     return await sendTarifs(from);
@@ -517,7 +521,7 @@ async function sendReserverFlow(from) {
   // Enregistrement à l'heure : une seule ligne, puis choix de la durée (1h/2h/3h).
   const recRow = {
     id: 'RECDUR',
-    title: 'Enregistrement (à l\'heure)',
+    title: 'Enregistrement (heure)',
     description: promo ? '🔥 15 000 F/h · 1h, 2h ou 3h' : '25 000 F/h · 1h, 2h ou 3h',
   };
   return await callMeta(from, {

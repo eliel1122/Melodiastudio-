@@ -203,6 +203,7 @@ async function routeAction(from, name, actionId) {
     case 'RESEAUX':   return await sendReseaux(from);
     case 'CONTACT':   return await sendContact(from);
     case 'MENU':      return await sendMainMenu(from, name);
+    case 'RECDUR':    return await sendDurationChoice(from);
     default:          return await sendMainMenu(from, name);
   }
 }
@@ -489,7 +490,9 @@ async function sendContact(from) {
 //                    prix (description ≤72c), service id Airtable }
 // =====================================================
 const CATALOG = {
-  rec:       { title: 'Enregistrement (heure)', dur: 1, desc: '25 000 F / h · 15 000 F le mardi', svc: 'rec' },
+  rec:       { title: 'Enregistrement — 1h',    dur: 1, desc: '25 000 F/h · 15 000 F le mardi', svc: 'rec' },
+  rec2:      { title: 'Enregistrement — 2h',    dur: 2, desc: '2h de studio', svc: 'rec' },
+  rec3:      { title: 'Enregistrement — 3h',    dur: 3, desc: '3h de studio', svc: 'rec' },
   silver:    { title: 'Pack Silver',            dur: 2, desc: '40 000 F · 2h + pré-mix + photos', svc: 'pack-silver' },
   gold:      { title: 'Pack Gold',              dur: 2, desc: '180 000 F · 2h + mix + photos + cover', svc: 'pack-gold' },
   platinium: { title: 'Pack Platinium',         dur: 2, desc: '280 000 F · tout inclus', svc: 'pack-platinium' },
@@ -509,10 +512,14 @@ async function sendReserverFlow(from) {
   const row = (id) => ({
     id: `S|${id}`,
     title: CATALOG[id].title,
-    description: (id === 'rec' && promo)
-      ? '🔥 Promo été : 15 000 F / h (au lieu de 25 000)'
-      : CATALOG[id].desc,
+    description: CATALOG[id].desc,
   });
+  // Enregistrement à l'heure : une seule ligne, puis choix de la durée (1h/2h/3h).
+  const recRow = {
+    id: 'RECDUR',
+    title: 'Enregistrement (à l\'heure)',
+    description: promo ? '🔥 15 000 F/h · 1h, 2h ou 3h' : '25 000 F/h · 1h, 2h ou 3h',
+  };
   return await callMeta(from, {
     type: 'interactive',
     interactive: {
@@ -523,10 +530,30 @@ async function sendReserverFlow(from) {
       action: {
         button: 'Voir les services',
         sections: [
-          { title: '🎙️ Studio', rows: ['rec', 'silver', 'gold', 'platinium', 'jam', 'vo'].map(row) },
+          { title: '🎙️ Studio', rows: [recRow, row('silver'), row('gold'), row('platinium'), row('jam'), row('vo')] },
           { title: '🎚️ Prod & post-prod', rows: ['mix', 'master', 'prod', 'da'].map(row) },
         ],
       },
+    },
+  });
+}
+
+// Choix de la durée pour l'enregistrement à l'heure (même acompte 2 500 F).
+async function sendDurationChoice(from) {
+  const promo = promoHourActive(todayISO());
+  return await callMeta(from, {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text:
+        `🎙️ *Enregistrement à l'heure*\n\n` +
+        `Tu veux réserver combien de temps ?${promo ? '\n🔥 Promo été : 15 000 F / h' : ''}\n\n` +
+        `_Acompte de 2 500 F quelle que soit la durée._` },
+      action: { buttons: [
+        { type: 'reply', reply: { id: 'S|rec', title: '1 heure' } },
+        { type: 'reply', reply: { id: 'S|rec2', title: '2 heures' } },
+        { type: 'reply', reply: { id: 'S|rec3', title: '3 heures' } },
+      ]},
     },
   });
 }
@@ -649,7 +676,7 @@ async function sendSlots(from, svcId, dateIso, period) {
 function totalForCatalog(svcId, dateIso) {
   const c = CATALOG[svcId];
   if (!c) return 0;
-  if (c.svc === 'rec') return hourPrice(dateIso);
+  if (c.svc === 'rec') return hourPrice(dateIso) * (c.dur || 1);
   return PRICES[c.svc] || 0;
 }
 
@@ -732,7 +759,7 @@ async function startPayment(from, name, svcId, dateIso, hStr, choice) {
       `Montant : *${montant.toLocaleString('fr-FR').replace(/,/g, ' ')} F*` +
       (choice === 'acompte' && data.solde ? ` (acompte non remboursable · solde ${data.solde} F au studio)` : '') +
       `\n\n👉 Paie ici (carte, Orange Money, Wave, MTN) :\n${data.authorization_url}\n\n` +
-      `Dès que c'est payé, tu reçois ta confirmation ici. Le créneau est gardé 20 min ⏳`
+      `Dès que c'est payé, tu reçois ta confirmation ici. Le créneau est gardé 5 min ⏳`
     );
   } catch (e) {
     console.error('[wa-payment] error:', e.message);

@@ -194,7 +194,7 @@ async function sendMainMenu(from, name) {
     interactive: {
       type: 'list',
       header: { type: 'text', text: '🎙️ Melodia Studio' },
-      body: { text: `Salut ${name} ! Bienvenue chez Melodia. Qu'est-ce qui t'amène ?` },
+      body: { text: `Salut ${name} ! Bienvenue chez Melodia. Qu'est-ce qui t'amène ?\n\nClique sur le bouton "Voir le menu" pour continuer 👇🏾\n\nSi vous voulez discuter avec un agent, veuillez laisser une note vocale, nous vous reviendrons sous peu` },
       footer: { text: 'Le studio des artistes qui montent · Abidjan' },
       action: {
         button: 'Voir le menu',
@@ -202,7 +202,7 @@ async function sendMainMenu(from, name) {
           { title: 'Réserver & tarifs', rows: [
             { id: 'RESERVER', title: '🎙️ Réserver une session', description: 'Bloque ton créneau en ligne' },
             { id: 'TARIFS',   title: '📋 Tarifs', description: 'Enregistrement, mix, master…' },
-            { id: 'DEVIS',    title: '✍️ Demander un devis', description: 'Projet particulier' },
+            { id: 'DEVIS',    title: '✍️ Devis / demande', description: 'Devis ou demande particulière' },
           ]},
           { title: 'Le studio', rows: [
             { id: 'FID_CARTE', title: '🎁 Ma carte fidélité', description: 'Points, statut, avantages' },
@@ -309,11 +309,20 @@ async function sendVisitePhysique(from) {
 
 // ---- Devis ----
 async function sendDevis(from, name) {
-  return await sendText(from,
-    `✍️ *Demander un devis*\n\n` +
-    `Décris-nous ton projet ${name} : type (single, EP, album, clip, pub…), nombre de titres, deadline, budget indicatif, références.\n\n` +
-    `Écris tout ici en un message, on te fait une proposition sous 24h 🤝`
-  );
+  return await callMeta(from, {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text:
+        `✍️ *Devis ou demande particulière*\n\n` +
+        `Pour un projet spécifique (single, EP, album, clip, pub…) ou toute autre demande, laisse-nous une *note vocale* 🎤 avec les détails (type, nombre de titres, deadline, budget, références).\n\n` +
+        `On t'envoie une proposition sous 24h 🤝` },
+      action: { buttons: [
+        { type: 'reply', reply: { id: 'RESERVER', title: '🎙️ Réserver' } },
+        { type: 'reply', reply: { id: 'MENU', title: '⬅️ Menu' } },
+      ]},
+    },
+  });
 }
 
 // ---- Réseaux ----
@@ -346,29 +355,36 @@ async function sendTarifs(from) {
     ...(promo ? ['🔥 *PROMO ÉTÉ* — l\'heure de studio à 15 000 F jusqu\'au 15 août !', ''] : []),
     '*🎙️ ENREGISTREMENT*',
     promo
-      ? '• À l\'heure : *15 000 FCFA* 🔥 _(au lieu de 25 000)_'
-      : '• À l\'heure : 25 000 FCFA',
-    '• Pack Silver (2h + pré-mix + photos) : 40 000',
-    '• Pack Gold (2h + mix + photos + cover) : 180 000',
-    '• Pack Platinium (tout inclus) : 280 000',
+      ? '• À l\'heure (prise de voix / maquette) : *15 000 FCFA* 🔥 _(au lieu de 25 000)_'
+      : '• À l\'heure (prise de voix / maquette) : *25 000 FCFA*',
+    '• Pack Silver (prise de voix) — 2h + pré-mix + photos : 40 000F',
+    '• Pack Gold (semi-fini) — 2h + mix + photos + cover : 180 000F',
+    '• Pack Platinium (produit fini) — tout inclus : 280 000F',
     '',
     '*🎚️ MIX & MASTER*',
-    '• Mix : 150 000 / titre',
-    '• Mix + Master : 200 000 / titre',
-    '• Mastering : 75 000 / titre',
+    '• Mix : 150 000F / titre',
+    '• Mastering : 75 000F / titre',
+    '• Mix + Master : 200 000F / titre',
     '',
     '*🎹 AUTRES*',
-    '• Production beat : dès 100 000',
-    '• Voice-over : 40 000 / h',
-    '• Direction artistique : dès 30 000',
-    '• Location studio : dès 35 000 / h',
-    '• Tournage clip : dès 30 000 / h',
+    '• Production beat : dès 100 000F',
+    '• Voice-over : 40 000F / h',
+    '• Location studio (tu ramènes ton ingé) : dès 35 000F / h',
+    '• Tournage clip / Podcast : dès 30 000F / h',
     '',
     '🔗 Détails : https://melodiastudio.pro/pages/tarifs.html',
-    '',
-    'Tape *réserver* pour planifier ta session 🎶',
   ].join('\n');
-  return await sendText(from, txt);
+  return await callMeta(from, {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: txt },
+      action: { buttons: [
+        { type: 'reply', reply: { id: 'RESERVER', title: '🎙️ Réserver' } },
+        { type: 'reply', reply: { id: 'MENU', title: '⬅️ Menu' } },
+      ]},
+    },
+  });
 }
 
 async function sendAdresse(from) {
@@ -381,11 +397,20 @@ async function sendAdresse(from) {
       address: 'Cocody Riviera 4 M\'pouto - La harpe mélodieuse',
     },
   });
-  return await sendText(from,
-    '📍 *Melodia Studio*\nCocody Riviera 4 M\'pouto\nLa harpe mélodieuse\nPlus Code : 82HW+W6 Abidjan\n\n' +
-    '🗺️ Google Maps : https://www.google.com/maps?q=82HW%2BW6+Abidjan\n\n' +
-    '⏰ Lun—Sam : 9h-23h · Dim : sur RDV'
-  );
+  return await callMeta(from, {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text:
+        '📍 *Melodia Studio*\nCocody Riviera 4 M\'pouto\nLa harpe mélodieuse\nPlus Code : 82HW+W6 Abidjan\n\n' +
+        '🗺️ Google Maps : https://www.google.com/maps?q=82HW%2BW6+Abidjan\n\n' +
+        '⏰ Lun—Sam : 9h-23h · Dim : sur RDV' },
+      action: { buttons: [
+        { type: 'reply', reply: { id: 'RESERVER', title: '🎙️ Réserver' } },
+        { type: 'reply', reply: { id: 'MENU', title: '⬅️ Menu' } },
+      ]},
+    },
+  });
 }
 
 async function sendFidelite(from) {
@@ -403,7 +428,8 @@ async function sendContact(from) {
   return await sendText(from,
     '*📞 NOUS CONTACTER*\n\n' +
     // Numéro du studio uniquement — JAMAIS le numéro perso du Boss
-    '📱 WhatsApp : +225 07 03 38 77 38\n' +
+    '📱 WhatsApp / Téléphone : +225 07 03 38 77 38\n' +
+    '📞 Tu peux nous *appeler directement* (appel classique ou appel WhatsApp)\n' +
     '✉️ Email : contact.melodiastud@gmail.com\n' +
     '📷 Instagram : @melodia.studi0\n' +
     '🎵 TikTok : @melodia.studi0\n' +

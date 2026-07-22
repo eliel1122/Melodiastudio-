@@ -601,6 +601,8 @@
             <div class="statuses">
               ${ALL_STATUSES.map(s => `<button class="st-btn ${s === r.statut ? 'current' : ''} ${s === 'Annulée' ? 'danger' : ''}" data-set="${s}" data-id="${r.id}" ${s === r.statut ? 'disabled' : ''}>${s}</button>`).join('')}
             </div>
+            <div class="lbl">Ingé${r.inge ? ' · 🎧 ' + r.inge + ((r.commission != null && r.commission !== '') ? ' (' + r.commission + '%)' : '') : ''}</div>
+            <button class="btn ghost" data-assign-id="${r.id}" data-assign-inge="${r.inge || ''}" data-assign-comm="${r.commission != null ? r.commission : ''}">🎧 ${r.inge ? 'Réassigner / changer le %' : 'Assigner un ingé'}</button>
           </div>`}
         </div>`).join('');
       // checkboxes de sélection (pour suppression) — n'ouvre pas la résa
@@ -623,6 +625,11 @@
           toast('Statut → ' + b.dataset.set + ' ✅');
           renderList();
         } catch (e) { showErr(e.message); b.disabled = false; }
+      }));
+      // assignation d'un ingé directement depuis la liste
+      document.querySelectorAll('#list-body [data-assign-id]').forEach(b => b.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        openAssign(b.dataset.assignId, b.dataset.assignInge, b.dataset.assignComm);
       }));
     }
 
@@ -744,11 +751,19 @@
       const comm = parseInt($('a-comm').value, 10);
       const b = $('assign-save'); b.disabled = true;
       try {
-        const d = await api('console-action', { action: 'assign_inge', reservationId: assignResaId, inge, commission: isNaN(comm) ? 20 : comm });
+        const comm2 = isNaN(comm) ? 20 : comm;
+        const d = await api('console-action', { action: 'assign_inge', reservationId: assignResaId, inge, commission: comm2 });
         $('assign-modal').style.display = 'none';
-        if (d.saved === false) showErr('Assigné, mais les champs Airtable « Ingé assigné » / « Commission % » n\'existent pas encore.');
-        else toast('🎧 ' + inge + ' assigné ✅');
-        dashData = null; allResas = [];
+        if (d.saved === false) {
+          showErr('Assigné, mais les champs Airtable « Ingé assigné » / « Commission % » n\'existent pas encore.');
+        } else {
+          toast('🎧 ' + inge + ' assigné ✅');
+          // MAJ locale immédiate de la résa dans la liste
+          const local = allResas.find(x => x.id === assignResaId);
+          if (local) { local.inge = inge; local.commission = comm2; }
+          if ($('tab-list') && $('tab-list').style.display !== 'none') renderList();
+        }
+        dashData = null; // le dashboard « Reversé aux ingés » se recalculera
         if (lastLookup) lookup(lastLookup);
       } catch (e) { $('assign-err').textContent = e.message; $('assign-err').style.display = 'block'; }
       finally { b.disabled = false; }

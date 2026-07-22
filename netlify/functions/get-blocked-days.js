@@ -35,8 +35,8 @@ exports.handler = async (event) => {
       console.log('[blocked-days] table bloqués absente, skip:', e.message);
     }
 
-    const open = 9 * 60;
-    const close = 21 * 60;
+    const open = 10 * 60;   // 10h
+    const close = 24 * 60;  // 00h (minuit)
     const blockedSet = new Set();
 
     for (const b of (bloques.records || [])) {
@@ -44,8 +44,9 @@ exports.handler = async (event) => {
       if (!dateField) continue;
       const dateIso = String(dateField).slice(0, 10); // garder YYYY-MM-DD
       const startMin = parseTimeToMinutes(b.fields['Heure début']);
-      const endMin = parseTimeToMinutes(b.fields['Heure fin']);
-      // Si la plage couvre 9h-21h → full day blocked
+      let endMin = parseTimeToMinutes(b.fields['Heure fin']);
+      if (endMin === 0) endMin = 24 * 60; // fin "00:00" = minuit = fin de journée
+      // Si la plage couvre 10h-00h → full day blocked
       if (startMin != null && endMin != null && startMin <= open && endMin >= close) {
         blockedSet.add(dateIso);
       }

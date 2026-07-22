@@ -455,7 +455,7 @@ async function sendAdresse(from) {
       body: { text:
         '📍 *Melodia Studio*\nCocody Riviera 4 M\'pouto\nLa harpe mélodieuse\nPlus Code : 82HW+W6 Abidjan\n\n' +
         '🗺️ Google Maps : https://www.google.com/maps?q=82HW%2BW6+Abidjan\n\n' +
-        '⏰ Lun—Sam : 9h-23h · Dim : sur RDV' },
+        '⏰ Lun—Sam : 10h-00h · Dim : sur RDV' },
       action: { buttons: [
         { type: 'reply', reply: { id: 'RESERVER', title: '🎙️ Réserver' } },
         { type: 'reply', reply: { id: 'MENU', title: '⬅️ Menu' } },
@@ -661,7 +661,7 @@ async function sendSlots(from, svcId, dateIso, period) {
   if (!inPeriod.length) return await noSlots(from, svcId, dateIso);
   const rows = inPeriod.map((h) => ({
     id: `T|${svcId}|${dateIso}|${h}`,
-    title: `${pad2(h)}h — ${pad2(h + c.dur)}h`,
+    title: `${pad2(h)}h — ${h + c.dur === 24 ? '00' : pad2(h + c.dur)}h`,
     description: `${c.dur}h de session`,
   }));
   return await callMeta(from, {
@@ -746,7 +746,7 @@ async function startPayment(from, name, svcId, dateIso, hStr, choice) {
         service: c.svc,
         date: dateIso,
         slotTime: `${pad2(h)}:00`,
-        slotLabel: `${pad2(h)}h — ${c.dur === 0 ? pad2(h) + 'h30' : pad2(h + c.dur) + 'h'}`,
+        slotLabel: `${pad2(h)}h — ${c.dur === 0 ? pad2(h) + 'h30' : (h + c.dur === 24 ? '00' : pad2(h + c.dur)) + 'h'}`,
         duration: c.dur || 1,
         choice,
         price: total,
@@ -852,7 +852,7 @@ async function fetchOccupied(dateIso) {
 async function freeStarts(svcId, dateIso) {
   const c = CATALOG[svcId];
   const occupied = await fetchOccupied(dateIso);
-  const OPEN = 9, CLOSE = 21;
+  const OPEN = 10, CLOSE = 24; // studio 10h–00h (minuit)
   const out = [];
   for (let start = OPEN; start + c.dur <= CLOSE; start++) {
     if (!overlaps(start * 60, (start + c.dur) * 60, occupied)) out.push(start);

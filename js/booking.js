@@ -26,7 +26,7 @@ const DATA = {
 
 // Generate available time-slots depending on the duration (hours).
 //   - duration === 0  → 3 short 30min rendez-vous (services non-studio : Mix, Master, DA, Prod beat)
-//   - duration  >  0  → sliding-window 1h-step slots within the 9h–21h opening hours
+//   - duration  >  0  → sliding-window 1h-step slots within the 10h–00h opening hours
 function generateSlots(duration) {
   if (!duration || duration === 0) {
     return [
@@ -36,8 +36,8 @@ function generateSlots(duration) {
     ];
   }
   // Sliding window: a slot can start every hour from OPEN to (CLOSE - duration)
-  const OPEN = 9;
-  const CLOSE = 21;
+  const OPEN = 10;
+  const CLOSE = 24; // studio 10h–00h (minuit)
   const slots = [];
   for (let start = OPEN; start + duration <= CLOSE; start++) {
     const end = start + duration;
@@ -47,7 +47,7 @@ function generateSlots(duration) {
     else period = 'Soirée';
     slots.push({
       id: `s-${start}-${end}`,
-      time: `${pad(start)}h — ${pad(end)}h`,
+      time: `${pad(start)}h — ${end === 24 ? '00' : pad(end)}h`,
       label: `${period} · ${duration}h`,
     });
   }
@@ -108,9 +108,9 @@ async function fetchAvailability(dateIso) {
     if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
     const occupied = data.occupied || [];
-    // Journée entière bloquée : un blocage qui couvre 9h-21h
-    const open = (data.studioOpen?.startHour ?? 9) * 60;
-    const close = (data.studioOpen?.endHour ?? 21) * 60;
+    // Journée entière bloquée : un blocage qui couvre 10h-00h
+    const open = (data.studioOpen?.startHour ?? 10) * 60;
+    const close = (data.studioOpen?.endHour ?? 24) * 60;
     const blockedAll = occupied.some(o =>
       o.source === 'blocage' && o.start <= open && o.end >= close
     );

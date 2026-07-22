@@ -71,7 +71,7 @@ exports.handler = async (event) => {
       ok: true,
       date,
       occupied,
-      studioOpen: { startHour: 9, endHour: 21 },  // 9h-21h selon mémoire
+      studioOpen: { startHour: 10, endHour: 24 },  // 10h–00h (minuit)
     });
   } catch (e) {
     console.error('[availability] error:', e);

@@ -264,19 +264,22 @@ async function sendMaCarte(from, name) {
   }
   const f = client.fields || {};
   const pts = f['Points actifs'] || 0;
+  const seances = f['Séances totales'] || 0;
+  const tier = f['Tier'] || 'Bronze';
   const offertes = (f['Sessions offertes gagnées'] || 0) - (f['Sessions offertes utilisées'] || 0);
-  // Carte en PNG (rendue par /api/carte-fidelite), le détail est dessus
+  // 1) Résumé TEXTE — toujours livré, même si l'image ne passe pas (plus jamais "rien").
+  await sendText(from,
+    `🎁 *Ta carte fidélité Melodia*\n` +
+    `Statut : *${tier}* · ${pts}/5 points · ${seances} séance${seances > 1 ? 's' : ''}\n` +
+    (offertes > 0
+      ? `🎉 ${offertes} séance${offertes > 1 ? 's' : ''} offerte${offertes > 1 ? 's' : ''} à utiliser — présente ta carte à l'accueil !`
+      : `💪 Encore ${Math.max(0, 5 - pts)} point(s) et ta prochaine séance est OFFERTE.`) +
+    `\n\n💳 Ta carte en ligne : https://melodiastudio.pro/pages/ma-carte.html`
+  );
+  // 2) Puis la carte en PNG (rendue par /api/carte-fidelite).
   return await callMeta(from, {
     type: 'image',
-    image: {
-      link: carteUrl(from),
-      caption:
-        `🎁 Ta carte fidélité Melodia\n` +
-        (offertes > 0
-          ? `🎉 ${offertes} séance${offertes > 1 ? 's' : ''} offerte${offertes > 1 ? 's' : ''} à utiliser — présente ta carte à l'accueil !`
-          : `💪 Encore ${Math.max(0, 5 - pts)} point(s) et ta prochaine séance est OFFERTE.`) +
-        `\n\n💳 Ta carte en ligne : https://melodiastudio.pro/pages/ma-carte.html`,
-    },
+    image: { link: carteUrl(from), caption: '🎴 Ta carte fidélité Melodia' },
   });
 }
 

@@ -711,7 +711,7 @@ async function sendRecap(from, svcId, dateIso, hStr) {
   const bodyTxt =
     `📝 *RÉCAP DE TA RÉSA*\n\n🎙️ ${c.title}\n📅 ${frDate(dateIso)}\n⏰ ${pad2(h)}h — ${fin}\n💰 ${prixTxt}\n\n` +
     (total > 0
-      ? `Bloque ton créneau :\n• *Acompte ${dep} F* _(non remboursable)_ — solde ${solde} F au studio\n• ou *paie tout* maintenant\n\n⚠️ L'acompte confirme ta venue : il n'est pas remboursé en cas d'absence.`
+      ? `Bloque ton créneau :\n• *Acompte ${dep} F* _(non remboursable)_ — solde ${solde} F au studio\n• ou *paie tout* maintenant\n\n⚠️ L'acompte confirme ta venue : il n'est pas remboursé en cas d'absence.\n\n🔒 Paiement 100% sécurisé. Un doute ? Appelle le studio au 07 03 38 77 38 avant de payer — on répond.`
       : `On valide ?`);
 
   return await callMeta(from, {

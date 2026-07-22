@@ -8,7 +8,7 @@
 
 const {
   airtable, airtableTable, TABLES, jsonResponse, preflight,
-  SERVICE_LABELS, PRICES, TUESDAY_HOUR_PRICE, depositFor,
+  SERVICE_LABELS, PRICES, hourPrice, depositFor,
   resolveRole, COMMISSION_DEFAULT,
 } = require('./_lib');
 
@@ -56,14 +56,15 @@ async function fetchAllReservations() {
 function one(v) { return Array.isArray(v) ? v[0] : v; }
 function isTuesday(iso) { const d = new Date(iso + 'T00:00:00Z'); return d.getUTCDay() === 2; }
 
-// Prix plein d'une session (selon service + durée + tarif mardi)
+// Prix plein d'une session. Pour le studio à l'heure : hourPrice() applique
+// la promo été (15 000 F jusqu'au 15/08) ET le tarif mardi — même source de
+// vérité que le site/bot, sinon commissions & CA sont faux en période promo.
 function fullPrice(f) {
   const label = f['Service'];
   const id = LABEL_TO_ID[label] || null;
   const isHourly = id === 'rec' || id === 'rec-hour' || label === "Studio à l'heure";
   if (isHourly) {
-    const base = isTuesday(f['Date']) ? TUESDAY_HOUR_PRICE : 25000;
-    return base * (Number(f['Durée (h)']) || 1);
+    return hourPrice(f['Date']) * (Number(f['Durée (h)']) || 1);
   }
   return PRICES[id] || 0;
 }

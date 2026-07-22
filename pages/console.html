@@ -333,6 +333,32 @@
     </div>
   </div>
 
+  <!-- Modal modifier une session (admin) -->
+  <div id="editresa-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:60;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;max-width:460px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <p class="eyebrow">✏️ Modifier la session</p>
+        <button class="btn ghost" id="editresa-close" style="width:auto;padding:6px 12px;font-size:13px;">✕</button>
+      </div>
+      <label>Service</label>
+      <select id="er-svc"></select>
+      <div id="er-duree-wrap" style="margin-top:10px;display:none;">
+        <label>Durée (heures)</label>
+        <input id="er-duree" type="number" min="1" value="1" />
+      </div>
+      <div class="row" style="margin-top:10px;gap:16px;">
+        <div><label>Date</label><input id="er-date" type="date" /></div>
+        <div><label>Heure</label><input id="er-heure" type="text" placeholder="20h" /></div>
+      </div>
+      <div id="editresa-err" class="err" style="display:none;"></div>
+      <div style="height:14px;"></div>
+      <div class="row">
+        <button class="btn ok" id="editresa-save">💾 Enregistrer</button>
+        <button class="btn ghost" id="editresa-cancel">Annuler</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
     const fmtF = (n) => (Number(n) || 0).toLocaleString('fr-FR').replace(/,/g, ' ') + ' F';
@@ -485,6 +511,7 @@
           <div class="kv"><span>Client</span><b>${c.nom || '—'}</b></div>
           <div class="kv"><span>WhatsApp</span><b>${c.phone || '—'}</b></div>
           <div class="kv"><span>Date</span><b>${fmtDate(r.date)}${r.heure ? ' · ' + fmtHeure(r.heure) : ''}</b></div>
+          ${isHourlySvc(r.service) ? `<div class="kv"><span>Durée</span><b>${r.duree || 1}h</b></div>` : ''}
           ${money ? `<div class="kv"><span>Acompte</span><b>${r.acomptePaye ? '✅ payé' : '—'}</b></div>` : ''}
           ${money && r.solde ? `<div class="kv"><span>Solde à encaisser</span><b style="color:var(--accent)">${fmtF(r.solde)}</b></div>` : ''}
           ${r.inge ? `<div class="kv"><span>Ingé assigné</span><b>🎧 ${r.inge}${(r.commission != null && r.commission !== '') ? ' · ' + r.commission + '%' : ''}</b></div>` : ''}
@@ -494,7 +521,10 @@
             ${r.statut !== 'Soldée' && r.statut !== 'Terminée' ? `<button class="btn ok" data-act="mark_paid" data-id="${r.id}">💵 Encaisser le solde</button>` : ''}
             <button class="btn" data-act="mark_done" data-id="${r.id}">🎬 Session terminée</button>
           </div>
-          <button class="btn ghost" style="margin-top:10px" data-assign-id="${r.id}" data-assign-inge="${r.inge || ''}" data-assign-comm="${r.commission != null ? r.commission : ''}">👥 ${r.inge ? 'Réassigner' : 'Assigner'} un ingé</button>` : ''}
+          <div class="row" style="margin-top:10px">
+            <button class="btn ghost" data-assign-id="${r.id}" data-assign-inge="${r.inge || ''}" data-assign-comm="${r.commission != null ? r.commission : ''}">👥 ${r.inge ? 'Réassigner' : 'Assigner'}</button>
+            <button class="btn ghost" data-er-id="${r.id}" data-er-svc="${(r.service || '').replace(/"/g, '&quot;')}" data-er-date="${r.date || ''}" data-er-heure="${(r.heure || '').replace(/"/g, '&quot;')}" data-er-duree="${r.duree || 1}">✏️ Modifier</button>
+          </div>` : ''}
           ${c.id && c.phone ? `<button class="btn ghost" style="margin-top:10px" data-open-phone="${c.phone}">Voir la fidélité de ${c.nom.split(' ')[0]}</button>` : ''}
         </div>`;
       bindActions();
@@ -591,7 +621,7 @@
             ${isEng() ? '' : `<input type="checkbox" class="rsel" data-id="${r.id}" ${selectedResas.has(r.id) ? 'checked' : ''}>`}
             <div class="resa-main">
               <div class="resa-title">${r.service || 'Session'} · ${statutPill(r.statut)}</div>
-              <div class="resa-sub">${fmtDate(r.date)}${r.heure ? ' · ' + fmtHeure(r.heure) : ''} — ${r.clientNom || 'Client'}</div>
+              <div class="resa-sub">${fmtDate(r.date)}${r.heure ? ' · ' + fmtHeure(r.heure) : ''}${(isHourlySvc(r.service) && r.duree) ? ' · ' + r.duree + 'h' : ''} — ${r.clientNom || 'Client'}</div>
               <div class="resa-sub"><span class="mono">${r.ref || ''}</span>${(!isEng() && r.solde) ? ' · solde ' + fmtF(r.solde) : ''}${(!isEng() && r.inge) ? ' · 🎧 ' + r.inge : ''}</div>
             </div>
             ${isEng() ? '' : '<span class="chevron">▶</span>'}
@@ -603,6 +633,7 @@
             </div>
             <div class="lbl">Ingé${r.inge ? ' · 🎧 ' + r.inge + ((r.commission != null && r.commission !== '') ? ' (' + r.commission + '%)' : '') : ''}</div>
             <button class="btn ghost" data-assign-id="${r.id}" data-assign-inge="${r.inge || ''}" data-assign-comm="${r.commission != null ? r.commission : ''}">🎧 ${r.inge ? 'Réassigner / changer le %' : 'Assigner un ingé'}</button>
+            <button class="btn ghost" style="margin-top:8px" data-er-id="${r.id}" data-er-svc="${(r.service || '').replace(/"/g, '&quot;')}" data-er-date="${r.date || ''}" data-er-heure="${(r.heure || '').replace(/"/g, '&quot;')}" data-er-duree="${r.duree || 1}">✏️ Modifier la session</button>
           </div>`}
         </div>`).join('');
       // checkboxes de sélection (pour suppression) — n'ouvre pas la résa
@@ -630,6 +661,11 @@
       document.querySelectorAll('#list-body [data-assign-id]').forEach(b => b.addEventListener('click', (ev) => {
         ev.stopPropagation();
         openAssign(b.dataset.assignId, b.dataset.assignInge, b.dataset.assignComm);
+      }));
+      // modifier une session depuis la liste
+      document.querySelectorAll('#list-body [data-er-id]').forEach(b => b.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        openEditResaFromEl(b);
       }));
     }
 
@@ -769,14 +805,53 @@
       finally { b.disabled = false; }
     });
 
+    // ---- Modifier une session (admin) : service / date / heure / durée ----
+    let editResaId = null;
+    function toggleErDuree() { const s = SVC.find(x => x.id === $('er-svc').value); $('er-duree-wrap').style.display = (s && s.hourly) ? 'block' : 'none'; }
+    function openEditResaFromEl(el) {
+      editResaId = el.dataset.erId;
+      if (!$('er-svc').options.length) $('er-svc').innerHTML = SVC.map(s => `<option value="${s.id}">${s.label}</option>`).join('');
+      const svc = SVC.find(s => s.label === el.dataset.erSvc);
+      $('er-svc').value = svc ? svc.id : 'rec';
+      $('er-duree').value = el.dataset.erDuree || 1;
+      $('er-date').value = el.dataset.erDate || '';
+      $('er-heure').value = el.dataset.erHeure ? fmtHeure(el.dataset.erHeure) : '';
+      toggleErDuree();
+      $('editresa-err').style.display = 'none';
+      $('editresa-modal').style.display = 'flex';
+    }
+    $('er-svc').addEventListener('change', toggleErDuree);
+    $('editresa-close').addEventListener('click', () => $('editresa-modal').style.display = 'none');
+    $('editresa-cancel').addEventListener('click', () => $('editresa-modal').style.display = 'none');
+    $('editresa-modal').addEventListener('click', (e) => { if (e.target === $('editresa-modal')) $('editresa-modal').style.display = 'none'; });
+    $('editresa-save').addEventListener('click', async () => {
+      if (!editResaId) return;
+      const date = $('er-date').value, heure = $('er-heure').value.trim();
+      if (!date || !heure) { $('editresa-err').textContent = 'Date et heure requises'; $('editresa-err').style.display = 'block'; return; }
+      const b = $('editresa-save'); b.disabled = true;
+      try {
+        await api('console-action', { action: 'edit_resa', reservationId: editResaId, serviceId: $('er-svc').value, date, heure: heureToHHMM(heure), duree: $('er-duree').value });
+        toast('Session modifiée ✅');
+        $('editresa-modal').style.display = 'none';
+        dashData = null; allResas = [];
+        if ($('tab-list') && $('tab-list').style.display !== 'none') loadList(true);
+        if (lastLookup) lookup(lastLookup);
+      } catch (e) { $('editresa-err').textContent = e.message; $('editresa-err').style.display = 'block'; }
+      finally { b.disabled = false; }
+    });
+
+    // Tarif de l'heure de studio, aligné sur _lib.js (promo été + tarif mardi).
+    const PROMO_HOUR_END = '2026-08-15';
+    function hourPriceFront(iso) {
+      if (!iso) return 25000;
+      const tue = new Date(iso + 'T00:00:00').getDay() === 2;
+      return (iso <= PROMO_HOUR_END || tue) ? 15000 : 25000;
+    }
+    const isHourlySvc = (label) => !!label && /heure/i.test(label);
     function priceForForm() {
       const s = SVC.find(x => x.id === $('f-svc').value);
       if (!s) return 0;
-      if (s.hourly) {
-        const d = $('f-date').value;
-        const tue = d && new Date(d + 'T00:00:00').getDay() === 2;
-        return (tue ? 15000 : 25000) * (parseInt($('f-duree').value, 10) || 1);
-      }
+      if (s.hourly) return hourPriceFront($('f-date').value) * (parseInt($('f-duree').value, 10) || 1);
       return s.price;
     }
     function refreshPrice() {
@@ -935,7 +1010,9 @@
       const p = document.getElementById('cal-prev'), n = document.getElementById('cal-next');
       if (p) p.addEventListener('click', () => { calYM.m--; if (calYM.m < 0) { calYM.m = 11; calYM.y--; } mountCalendar(mountId); });
       if (n) n.addEventListener('click', () => { calYM.m++; if (calYM.m > 11) { calYM.m = 0; calYM.y++; } mountCalendar(mountId); });
-      mount.querySelectorAll('.cal-day.has').forEach(el => el.addEventListener('click', () => openDayModal(el.dataset.iso)));
+      // Admin : tous les jours cliquables (voir les dispos). Ingé : seulement ses jours bookés.
+      const sel = isEng() ? '.cal-day.has' : '.cal-day[data-iso]';
+      mount.querySelectorAll(sel).forEach(el => { el.style.cursor = 'pointer'; el.addEventListener('click', () => openDayModal(el.dataset.iso)); });
     }
 
     // ---- Réservations d'un jour (clic sur le calendrier) ----
@@ -947,24 +1024,51 @@
       $('day-title').textContent = fmtDateLong(iso);
       $('day-body').innerHTML = '<div class="list-empty">Chargement…</div>';
       $('day-modal').style.display = 'flex';
-      try { await loadList(); } catch (e) { $('day-body').innerHTML = '<div class="list-empty">Erreur de chargement.</div>'; return; }
-      const rows = allResas.filter(r => r.date === iso)
-        .sort((a, b) => heureToHHMM(a.heure).localeCompare(heureToHHMM(b.heure)));
-      if (!rows.length) { $('day-body').innerHTML = '<div class="list-empty">Aucune réservation ce jour.</div>'; return; }
-      $('day-body').innerHTML = rows.map(r => `
-        <div class="day-resa" data-ref="${r.ref || ''}">
-          <div class="dr-main">
-            <div class="dr-t">${r.heure ? fmtHeure(r.heure) + ' · ' : ''}${r.service || 'Session'}</div>
-            <div class="dr-s">${r.clientNom || 'Client'}${r.solde ? ' · solde ' + fmtF(r.solde) : ''}</div>
-          </div>
-          ${statutPill(r.statut)}
-        </div>`).join('');
+      let resasHtml = '';
+      try {
+        await loadList();
+        const rows = allResas.filter(r => r.date === iso)
+          .sort((a, b) => heureToHHMM(a.heure).localeCompare(heureToHHMM(b.heure)));
+        resasHtml = rows.length ? rows.map(r => `
+          <div class="day-resa" data-ref="${r.ref || ''}">
+            <div class="dr-main">
+              <div class="dr-t">${r.heure ? fmtHeure(r.heure) + ' · ' : ''}${r.service || 'Session'}${(isHourlySvc(r.service) && r.duree) ? ' (' + r.duree + 'h)' : ''}</div>
+              <div class="dr-s">${r.clientNom || 'Client'}${(!isEng() && r.solde) ? ' · solde ' + fmtF(r.solde) : ''}</div>
+            </div>
+            ${statutPill(r.statut)}
+          </div>`).join('') : '<div class="list-empty" style="padding:14px 0;">Aucune réservation ce jour.</div>';
+      } catch (e) { resasHtml = '<div class="list-empty">Erreur de chargement.</div>'; }
+
+      const dispoHtml = isEng() ? '' : '<div class="lbl" style="margin-top:14px;">Créneaux libres · studio à l\'heure</div><div id="day-dispo" class="muted" style="margin-top:6px;">…</div>';
+      $('day-body').innerHTML = resasHtml + dispoHtml;
       $('day-body').querySelectorAll('.day-resa').forEach(el => el.addEventListener('click', () => {
         const ref = el.dataset.ref; if (!ref) return;
         $('day-modal').style.display = 'none';
         lookup({ ref });
         setTimeout(() => $('result').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
       }));
+      if (!isEng()) loadDispo(iso);
+    }
+
+    // Créneaux libres d'un jour (get-availability = GET public, sans PIN).
+    // Une heure est libre si aucun créneau occupé (résa ferme ou blocage) ne la chevauche.
+    async function loadDispo(iso) {
+      const el = $('day-dispo'); if (!el) return;
+      try {
+        const res = await fetch('/api/get-availability?date=' + encodeURIComponent(iso));
+        const d = await res.json();
+        const openH = (d.studioOpen && d.studioOpen.startHour) || 9;
+        const closeH = (d.studioOpen && d.studioOpen.endHour) || 21;
+        const occ = d.occupied || [];
+        const free = [];
+        for (let h = openH; h < closeH; h++) {
+          const s = h * 60, e = (h + 1) * 60;
+          if (!occ.some(o => s < o.end && e > o.start)) free.push(h);
+        }
+        el.innerHTML = free.length
+          ? free.map(h => `<span style="display:inline-block;padding:5px 10px;margin:0 6px 6px 0;border-radius:8px;border:1px solid rgba(34,197,94,.4);color:var(--ok);font-size:13px;">${h}h</span>`).join('')
+          : `<span style="color:var(--danger)">Complet ce jour (${openH}h–${closeH}h).</span>`;
+      } catch (e) { el.textContent = 'Dispo indisponible pour le moment.'; }
     }
     function renderCalendar() {
       const booked = currentBooked();
@@ -1031,6 +1135,7 @@
       document.querySelectorAll('[data-card-nom]').forEach(b => b.addEventListener('click', () => showCardPanel(b.dataset.cardNom, b.dataset.cardPhone, b.dataset.cardUrl || null)));
       document.querySelectorAll('[data-edit-id]').forEach(b => b.addEventListener('click', () => openEditClient(b.dataset.editId, b.dataset.editNom, b.dataset.editPhone, b.dataset.editEmail)));
       document.querySelectorAll('[data-assign-id]').forEach(b => b.addEventListener('click', () => openAssign(b.dataset.assignId, b.dataset.assignInge, b.dataset.assignComm)));
+      document.querySelectorAll('[data-er-id]').forEach(b => b.addEventListener('click', () => openEditResaFromEl(b)));
     }
 
     // ---- Créneaux bloqués ----

@@ -6,9 +6,19 @@
 
 const {
   airtable, airtableTable, TABLES, jsonResponse, preflight,
-  mapService, PRICES, TUESDAY_HOUR_PRICE, depositFor,
+  mapService, SERVICE_LABELS, PRICES, hourPrice, depositFor,
   carteUrl, ycloudImage, resolveRole, ENGINEERS, COMMISSION_DEFAULT,
 } = require('./_lib');
+
+// label service (Airtable) → id (pour retrouver le prix lors d'une modif)
+const LABEL_TO_ID = {};
+for (const [id, label] of Object.entries(SERVICE_LABELS)) {
+  if (!(label in LABEL_TO_ID)) LABEL_TO_ID[label] = id;
+}
+function extractSolde(notes) {
+  const m = (notes || '').match(/solde\s+([\d\s]+)\s*F/i);
+  return m ? parseInt(m[1].replace(/\s/g, ''), 10) : 0;
+}
 
 // Actions autorisées à un ingénieur (vue restreinte). Tout le reste (argent,
 // création/suppression de résa, blocage de créneaux, assignation) est admin.
@@ -35,6 +45,7 @@ exports.handler = async (event) => {
       case 'set_status':     return await setStatus(p.reservationId, p.statut);
       case 'delete_resa':    return await deleteResas(p);
       case 'edit_client':    return await editClient(p);
+      case 'edit_resa':      return await editResa(p);
       case 'assign_inge':    return await assignInge(p);
       case 'fidelity_delta': return await fidelityDelta(p.clientId, parseInt(p.delta, 10) || 0);
       case 'use_free':       return await useFreeSession(p.clientId);
@@ -80,10 +91,10 @@ function generateRef() {
   const r = Math.random().toString(36).slice(2, 6).toUpperCase();
   return `MEL-${d}-${r}`;
 }
-function isTuesday(iso) { return new Date(iso + 'T00:00:00Z').getUTCDay() === 2; }
 function fullPriceFor(id, date, duree) {
   if (id === 'rec' || id === 'rec-hour') {
-    return (isTuesday(date) ? TUESDAY_HOUR_PRICE : 25000) * (Number(duree) || 1);
+    // hourPrice = promo été + tarif mardi (source de vérité _lib, alignée site/bot)
+    return hourPrice(date) * (Number(duree) || 1);
   }
   return PRICES[id] || 0;
 }
@@ -228,6 +239,49 @@ async function editClient(p) {
   if (p.email !== undefined) fields['Email'] = (p.email || '').trim();
   await patchResilient(`${airtableTable(TABLES.CLIENTS)}/${p.clientId}`, fields);
   return jsonResponse(200, { ok: true, phone: digits || null, carteUrl: digits.length >= 8 ? carteUrl(digits) : null });
+}
+
+// Modifie une session existante (service, date, heure, durée) — ex : le client
+// veut finalement 2h au lieu d'1h, ou être reprogrammé. Recalcule le solde en
+// préservant le montant déjà payé, uniquement si la résa a un marqueur "solde".
+async function editResa(p) {
+  if (!p.reservationId) return jsonResponse(400, { error: 'reservationId requis' });
+  const r = await getResa(p.reservationId);
+  const f = r.fields || {};
+  const oldLabel = f['Service'];
+  const oldId = LABEL_TO_ID[oldLabel] || 'rec';
+  const oldDate = f['Date'];
+  const oldDuree = Number(f['Durée (h)']) || 1;
+
+  const serviceId = p.serviceId || oldId;
+  const label = mapService(serviceId) || oldLabel;
+  const date = p.date || oldDate;
+  const heure = (p.heure != null && String(p.heure).trim() !== '') ? p.heure : f['Heure début'];
+  const duree = (p.duree != null && String(p.duree).trim() !== '') ? Number(p.duree) : oldDuree;
+  if (!label) return jsonResponse(400, { error: 'Service inconnu' });
+
+  const fields = {
+    'Service': label,
+    ...(date ? { 'Date': date } : {}),
+    'Heure début': heure,
+    'Durée (h)': duree,
+  };
+
+  // Recalcul du solde en préservant le déjà-payé (ancien prix − ancien solde),
+  // seulement si un marqueur "solde X F" existe (résas créées en console).
+  const notes = f['Notes'] || '';
+  if (/solde\s+[\d\s]+\s*F/i.test(notes)) {
+    const oldPrice = fullPriceFor(oldId, oldDate, oldDuree);
+    const paid = Math.max(0, oldPrice - extractSolde(notes));
+    const newPrice = fullPriceFor(serviceId, date, duree);
+    const newSolde = Math.max(0, newPrice - paid);
+    fields['Notes'] = notes.replace(/solde\s+[\d\s]+\s*F/i, 'solde ' + newSolde + ' F') + '\n✏️ Session modifiée (console)';
+  } else {
+    fields['Notes'] = notes + '\n✏️ Session modifiée (console)';
+  }
+
+  await patchResilient(`${airtableTable(TABLES.RESERVATIONS)}/${p.reservationId}`, fields);
+  return jsonResponse(200, { ok: true });
 }
 
 // Assigne un ingénieur à une session + son % de commission (défaut 20 %).

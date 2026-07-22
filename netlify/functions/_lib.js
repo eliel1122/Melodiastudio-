@@ -39,6 +39,28 @@ function mapService(id) {
   return SERVICE_LABELS[id] || id;
 }
 
+// ---------- Rôles console (auth) ----------
+// La console a deux rôles : l'admin (le Boss, PIN = CONSOLE_PIN) et les
+// ingénieurs (Deeper / Le Bryx), chacun avec son propre PIN secret défini
+// en variable d'environnement Netlify (PIN_DEEPER / PIN_BRYX). Un ingé a une
+// vue restreinte SANS montants (voir console-lookup / console-action).
+const ENGINEERS = ['Deeper', 'Le Bryx'];
+const COMMISSION_DEFAULT = 20; // % du prix total reversé à l'ingé assigné
+
+// Résout un PIN en rôle. L'admin est prioritaire (si un PIN ingé était par
+// erreur identique au PIN admin, l'admin gagne).
+function resolveRole(pin) {
+  const p = String(pin || '');
+  if (!p) return { ok: false, role: null, engineer: null };
+  const admin = String(process.env.CONSOLE_PIN || '2024');
+  if (p === admin) return { ok: true, role: 'admin', engineer: null };
+  const deeper = process.env.PIN_DEEPER ? String(process.env.PIN_DEEPER) : null;
+  const bryx = process.env.PIN_BRYX ? String(process.env.PIN_BRYX) : null;
+  if (deeper && p === deeper) return { ok: true, role: 'engineer', engineer: 'Deeper' };
+  if (bryx && p === bryx) return { ok: true, role: 'engineer', engineer: 'Le Bryx' };
+  return { ok: false, role: null, engineer: null };
+}
+
 // ---------- Airtable HTTP wrapper ----------
 async function airtable(path, opts = {}) {
   if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
@@ -239,6 +261,9 @@ module.exports = {
   TABLES,
   SERVICE_LABELS,
   mapService,
+  ENGINEERS,
+  COMMISSION_DEFAULT,
+  resolveRole,
   airtable,
   airtableTable,
   jsonResponse,

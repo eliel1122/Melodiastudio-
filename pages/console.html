@@ -312,6 +312,27 @@
     </div>
   </div>
 
+  <!-- Modal assignation ingé (admin) -->
+  <div id="assign-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:60;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;max-width:460px;width:100%;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <p class="eyebrow">🎧 Assigner un ingé</p>
+        <button class="btn ghost" id="assign-close" style="width:auto;padding:6px 12px;font-size:13px;">✕</button>
+      </div>
+      <label>Ingénieur</label>
+      <select id="a-inge"><option value="Deeper">Deeper</option><option value="Le Bryx">Le Bryx</option></select>
+      <div style="height:10px;"></div>
+      <label>Commission (%) — part du prix total reversée à l'ingé</label>
+      <input id="a-comm" type="number" min="0" max="100" value="20" />
+      <div id="assign-err" class="err" style="display:none;"></div>
+      <div style="height:14px;"></div>
+      <div class="row">
+        <button class="btn ok" id="assign-save">💾 Assigner</button>
+        <button class="btn ghost" id="assign-cancel">Annuler</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
     const fmtF = (n) => (Number(n) || 0).toLocaleString('fr-FR').replace(/,/g, ' ') + ' F';
@@ -331,6 +352,9 @@
       return h; };
     let PIN = sessionStorage.getItem('console_pin') || '';
     let qr = null;
+    // Rôle console : 'admin' (le Boss) ou 'engineer' (Deeper / Le Bryx, vue restreinte)
+    let ROLE = 'admin', ENGINEER = null, roleLoaded = false;
+    const isEng = () => ROLE === 'engineer';
 
     function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2200); }
     function showErr(m) { const e = $('err'); e.textContent = m; e.style.display = 'block'; setTimeout(() => e.style.display = 'none', 4000); }
@@ -346,25 +370,52 @@
     // ---- PIN ----
     $('pin-go').addEventListener('click', tryPin);
     $('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryPin(); });
+    // Valide le PIN ET récupère le rôle (le ping renvoie { role, engineer }).
+    async function fetchRole() {
+      const res = await fetch('/api/console-lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: PIN }) });
+      if (res.status === 401) throw new Error('Code incorrect');
+      const d = await res.json().catch(() => ({}));
+      ROLE = d.role || 'admin'; ENGINEER = d.engineer || null; roleLoaded = true;
+    }
     async function tryPin() {
       PIN = $('pin').value.trim();
       try {
-        // lookup bidon pour valider le PIN (400 = pin ok mais query vide)
-        await fetch('/api/console-lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: PIN }) })
-          .then(async r => { if (r.status === 401) throw new Error('Code incorrect'); });
+        await fetchRole();
         sessionStorage.setItem('console_pin', PIN);
         openApp();
       } catch (e) { $('pin-err').textContent = e.message; $('pin-err').style.display = 'block'; }
     }
 
-    function openApp() {
+    async function openApp() {
       $('pin-screen').style.display = 'none';
       $('app').style.display = 'block';
+      if (!roleLoaded) {
+        try { await fetchRole(); }
+        catch (e) { sessionStorage.removeItem('console_pin'); location.reload(); return; }
+      }
+      applyRole();
       startScanner();
       // deep-link (QR scanné avec l'appareil photo natif)
       const q = new URLSearchParams(location.search);
       if (q.get('ref')) lookup({ ref: q.get('ref') });
       else if (q.get('phone')) lookup({ phone: q.get('phone') });
+    }
+
+    // Configure l'interface selon le rôle. Admin = tout ; ingé = vue restreinte
+    // (Scan + Mes sessions filtrées + calendrier, aucun montant, aucune action argent).
+    function applyRole() {
+      if (!isEng()) return;
+      document.querySelector('.eyebrow').textContent = 'Espace ' + (ENGINEER || 'ingé');
+      // N'afficher que les onglets Scan et « Mes sessions »
+      document.querySelectorAll('.tab').forEach(t => { if (!['scan', 'list'].includes(t.dataset.tab)) t.style.display = 'none'; });
+      const lt = document.querySelector('.tab[data-tab="list"]'); if (lt) lt.innerHTML = '📋 Mes sessions';
+      const addOpen = $('add-open'); if (addOpen) addOpen.style.display = 'none';
+      const eyebrowList = $('tab-list').querySelector('.eyebrow'); if (eyebrowList) eyebrowList.textContent = 'Mes sessions · live';
+      // Calendrier de ses jours, en tête de l'onglet
+      if (!$('eng-cal')) {
+        const d = document.createElement('div'); d.id = 'eng-cal'; d.style.marginBottom = '4px';
+        $('tab-list').insertBefore(d, $('tab-list').firstChild);
+      }
     }
 
     // ---- Tabs ----
@@ -425,6 +476,7 @@
     }
 
     function renderBooking(r, c) {
+      const money = !isEng();
       $('result').innerHTML = `
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -433,14 +485,16 @@
           <div class="kv"><span>Client</span><b>${c.nom || '—'}</b></div>
           <div class="kv"><span>WhatsApp</span><b>${c.phone || '—'}</b></div>
           <div class="kv"><span>Date</span><b>${fmtDate(r.date)}${r.heure ? ' · ' + fmtHeure(r.heure) : ''}</b></div>
-          <div class="kv"><span>Acompte</span><b>${r.acomptePaye ? '✅ payé' : '—'}</b></div>
-          ${r.solde ? `<div class="kv"><span>Solde à encaisser</span><b style="color:var(--accent)">${fmtF(r.solde)}</b></div>` : ''}
+          ${money ? `<div class="kv"><span>Acompte</span><b>${r.acomptePaye ? '✅ payé' : '—'}</b></div>` : ''}
+          ${money && r.solde ? `<div class="kv"><span>Solde à encaisser</span><b style="color:var(--accent)">${fmtF(r.solde)}</b></div>` : ''}
+          ${r.inge ? `<div class="kv"><span>Ingé assigné</span><b>🎧 ${r.inge}${(r.commission != null && r.commission !== '') ? ' · ' + r.commission + '%' : ''}</b></div>` : ''}
           <div class="kv"><span>Réf</span><b style="font-family:'JetBrains Mono',monospace">${r.ref}</b></div>
           <div style="height:14px;"></div>
-          <div class="row">
+          ${money ? `<div class="row">
             ${r.statut !== 'Soldée' && r.statut !== 'Terminée' ? `<button class="btn ok" data-act="mark_paid" data-id="${r.id}">💵 Encaisser le solde</button>` : ''}
             <button class="btn" data-act="mark_done" data-id="${r.id}">🎬 Session terminée</button>
           </div>
+          <button class="btn ghost" style="margin-top:10px" data-assign-id="${r.id}" data-assign-inge="${r.inge || ''}" data-assign-comm="${r.commission != null ? r.commission : ''}">👥 ${r.inge ? 'Réassigner' : 'Assigner'} un ingé</button>` : ''}
           ${c.id && c.phone ? `<button class="btn ghost" style="margin-top:10px" data-open-phone="${c.phone}">Voir la fidélité de ${c.nom.split(' ')[0]}</button>` : ''}
         </div>`;
       bindActions();
@@ -466,7 +520,7 @@
           </div>
           ${dispo > 0 ? `<button class="btn ok" style="margin-top:10px" data-act="use_free" data-id="${c.id}">🎁 Utiliser une séance offerte</button>` : ''}
           <button class="btn ghost" style="margin-top:10px" data-card-nom="${(c.nom || '').replace(/"/g, '')}" data-card-phone="${(c.phone || '').replace(/"/g, '')}" data-card-url="${c.carteUrl || ''}">🎴 Carte fidélité</button>
-          ${c.id ? `<button class="btn ghost" style="margin-top:10px" data-edit-id="${c.id}" data-edit-nom="${(c.nom || '').replace(/"/g, '&quot;')}" data-edit-phone="${(c.phone || '').replace(/"/g, '&quot;')}" data-edit-email="${(c.email || '').replace(/"/g, '&quot;')}">✏️ Éditer le client</button>` : ''}
+          ${(c.id && !isEng()) ? `<button class="btn ghost" style="margin-top:10px" data-edit-id="${c.id}" data-edit-nom="${(c.nom || '').replace(/"/g, '&quot;')}" data-edit-phone="${(c.phone || '').replace(/"/g, '&quot;')}" data-edit-email="${(c.email || '').replace(/"/g, '&quot;')}">✏️ Éditer le client</button>` : ''}
           ${resas && resas.length ? `<div style="margin-top:16px;"><p class="eyebrow" style="margin-bottom:8px;">Réservations</p>${resas.map(r => `<div class="kv"><span>${r.date} · ${r.service}</span>${statutPill(r.statut)}</div>`).join('')}</div>` : ''}
         </div>`;
       bindActions();
@@ -507,12 +561,13 @@
     $('list-search').addEventListener('input', renderList);
 
     async function loadList(force) {
-      if (allResas.length && !force) { renderList(); return; }
+      if (allResas.length && !force) { renderList(); if (isEng()) mountCalendar('eng-cal'); return; }
       $('list-body').innerHTML = '<div class="list-empty">Chargement…</div>';
       try {
         const d = await api('console-lookup', { mode: 'list' });
         allResas = d.reservations || [];
         renderList();
+        if (isEng()) mountCalendar('eng-cal');
       } catch (e) { $('list-body').innerHTML = ''; showErr(e.message); }
     }
 
@@ -533,20 +588,20 @@
       $('list-body').innerHTML = rows.map(r => `
         <div class="resa" data-id="${r.id}">
           <div class="resa-head">
-            <input type="checkbox" class="rsel" data-id="${r.id}" ${selectedResas.has(r.id) ? 'checked' : ''}>
+            ${isEng() ? '' : `<input type="checkbox" class="rsel" data-id="${r.id}" ${selectedResas.has(r.id) ? 'checked' : ''}>`}
             <div class="resa-main">
               <div class="resa-title">${r.service || 'Session'} · ${statutPill(r.statut)}</div>
               <div class="resa-sub">${fmtDate(r.date)}${r.heure ? ' · ' + fmtHeure(r.heure) : ''} — ${r.clientNom || 'Client'}</div>
-              <div class="resa-sub"><span class="mono">${r.ref || ''}</span>${r.solde ? ' · solde ' + fmtF(r.solde) : ''}</div>
+              <div class="resa-sub"><span class="mono">${r.ref || ''}</span>${(!isEng() && r.solde) ? ' · solde ' + fmtF(r.solde) : ''}${(!isEng() && r.inge) ? ' · 🎧 ' + r.inge : ''}</div>
             </div>
-            <span class="chevron">▶</span>
+            ${isEng() ? '' : '<span class="chevron">▶</span>'}
           </div>
-          <div class="resa-body">
+          ${isEng() ? '' : `<div class="resa-body">
             <div class="lbl">Changer le statut</div>
             <div class="statuses">
               ${ALL_STATUSES.map(s => `<button class="st-btn ${s === r.statut ? 'current' : ''} ${s === 'Annulée' ? 'danger' : ''}" data-set="${s}" data-id="${r.id}" ${s === r.statut ? 'disabled' : ''}>${s}</button>`).join('')}
             </div>
-          </div>
+          </div>`}
         </div>`).join('');
       // checkboxes de sélection (pour suppression) — n'ouvre pas la résa
       document.querySelectorAll('#list-body .rsel').forEach(cb => cb.addEventListener('click', (e) => {
@@ -667,6 +722,35 @@
         if (lastLookup) lookup(lastLookup);
         if ($('tab-clients').style.display !== 'none') loadClients(true);
       } catch (e) { $('edit-err').textContent = e.message; $('edit-err').style.display = 'block'; }
+      finally { b.disabled = false; }
+    });
+
+    // ---- Assignation ingé (admin) ----
+    let assignResaId = null;
+    function openAssign(id, inge, comm) {
+      if (!id) return;
+      assignResaId = id;
+      $('a-inge').value = inge || 'Deeper';
+      $('a-comm').value = (comm !== undefined && comm !== null && comm !== '') ? comm : 20;
+      $('assign-err').style.display = 'none';
+      $('assign-modal').style.display = 'flex';
+    }
+    $('assign-close').addEventListener('click', () => $('assign-modal').style.display = 'none');
+    $('assign-cancel').addEventListener('click', () => $('assign-modal').style.display = 'none');
+    $('assign-modal').addEventListener('click', (e) => { if (e.target === $('assign-modal')) $('assign-modal').style.display = 'none'; });
+    $('assign-save').addEventListener('click', async () => {
+      if (!assignResaId) return;
+      const inge = $('a-inge').value;
+      const comm = parseInt($('a-comm').value, 10);
+      const b = $('assign-save'); b.disabled = true;
+      try {
+        const d = await api('console-action', { action: 'assign_inge', reservationId: assignResaId, inge, commission: isNaN(comm) ? 20 : comm });
+        $('assign-modal').style.display = 'none';
+        if (d.saved === false) showErr('Assigné, mais les champs Airtable « Ingé assigné » / « Commission % » n\'existent pas encore.');
+        else toast('🎧 ' + inge + ' assigné ✅');
+        dashData = null; allResas = [];
+        if (lastLookup) lookup(lastLookup);
+      } catch (e) { $('assign-err').textContent = e.message; $('assign-err').style.display = 'block'; }
       finally { b.disabled = false; }
     });
 
@@ -804,20 +888,38 @@
               <span class="cli-name">${c.nom}</span>
               <span style="text-align:right"><span class="cli-ca">${kf(c.ca)} F</span><br><span class="cli-cnt">${c.count} session${c.count > 1 ? 's' : ''}</span></span>
             </div>`).join('') : '<div class="list-empty">Pas encore de données.</div>'}
-        </div>`;
+        </div>
+        ${(d.ingesReverse && d.ingesReverse.length) ? `<div class="dash-card"><h3>🎧 Reversé aux ingés</h3>
+          ${d.ingesReverse.map(x => `
+            <div class="cli-row">
+              <span class="cli-name">${x.inge}</span>
+              <span style="text-align:right"><span class="cli-ca">${kf(x.montant)} F</span><br><span class="cli-cnt">${x.count} session${x.count > 1 ? 's' : ''}</span></span>
+            </div>`).join('')}
+        </div>` : ''}`;
       drawCharts();
       mountCalendar();
     }
 
     let calYM = null;
-    function mountCalendar() {
-      const mount = $('cal-mount'); if (!mount) return;
+    // Source des jours bookés : côté ingé on la reconstruit depuis SES sessions
+    // (pas d'accès au dashboard) ; côté admin on réutilise dashData.bookedDays.
+    function currentBooked() {
+      if (isEng()) {
+        const b = {};
+        (allResas || []).forEach(r => { if (r.date && r.statut !== 'Annulée') b[r.date] = (b[r.date] || 0) + 1; });
+        return b;
+      }
+      return (dashData && dashData.bookedDays) || {};
+    }
+    function mountCalendar(mountId) {
+      mountId = mountId || 'cal-mount';
+      const mount = document.getElementById(mountId); if (!mount) return;
       const now = new Date();
       if (!calYM) calYM = { y: now.getFullYear(), m: now.getMonth() };
       mount.innerHTML = renderCalendar();
       const p = document.getElementById('cal-prev'), n = document.getElementById('cal-next');
-      if (p) p.addEventListener('click', () => { calYM.m--; if (calYM.m < 0) { calYM.m = 11; calYM.y--; } mountCalendar(); });
-      if (n) n.addEventListener('click', () => { calYM.m++; if (calYM.m > 11) { calYM.m = 0; calYM.y++; } mountCalendar(); });
+      if (p) p.addEventListener('click', () => { calYM.m--; if (calYM.m < 0) { calYM.m = 11; calYM.y--; } mountCalendar(mountId); });
+      if (n) n.addEventListener('click', () => { calYM.m++; if (calYM.m > 11) { calYM.m = 0; calYM.y++; } mountCalendar(mountId); });
       mount.querySelectorAll('.cal-day.has').forEach(el => el.addEventListener('click', () => openDayModal(el.dataset.iso)));
     }
 
@@ -850,7 +952,7 @@
       }));
     }
     function renderCalendar() {
-      const booked = (dashData && dashData.bookedDays) || {};
+      const booked = currentBooked();
       const y = calYM.y, m = calYM.m;
       const moisFR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
       const startDow = (new Date(y, m, 1).getDay() + 6) % 7;
@@ -913,6 +1015,7 @@
       document.querySelectorAll('[data-open-phone]').forEach(b => b.addEventListener('click', () => lookup({ phone: b.dataset.openPhone })));
       document.querySelectorAll('[data-card-nom]').forEach(b => b.addEventListener('click', () => showCardPanel(b.dataset.cardNom, b.dataset.cardPhone, b.dataset.cardUrl || null)));
       document.querySelectorAll('[data-edit-id]').forEach(b => b.addEventListener('click', () => openEditClient(b.dataset.editId, b.dataset.editNom, b.dataset.editPhone, b.dataset.editEmail)));
+      document.querySelectorAll('[data-assign-id]').forEach(b => b.addEventListener('click', () => openAssign(b.dataset.assignId, b.dataset.assignInge, b.dataset.assignComm)));
     }
 
     // ---- Créneaux bloqués ----

@@ -7,10 +7,12 @@
 const {
   airtable, airtableTable, TABLES, jsonResponse, preflight,
   mapService, PRICES, TUESDAY_HOUR_PRICE, depositFor,
-  carteUrl, ycloudImage,
+  carteUrl, ycloudImage, resolveRole, ENGINEERS, COMMISSION_DEFAULT,
 } = require('./_lib');
 
-const PIN = process.env.CONSOLE_PIN || '2024';
+// Actions autorisées à un ingénieur (vue restreinte). Tout le reste (argent,
+// création/suppression de résa, blocage de créneaux, assignation) est admin.
+const ENGINEER_ACTIONS = ['fidelity_delta', 'use_free', 'send_card'];
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
@@ -18,7 +20,11 @@ exports.handler = async (event) => {
 
   let p;
   try { p = JSON.parse(event.body || '{}'); } catch { return jsonResponse(400, { error: 'Body invalide' }); }
-  if (String(p.pin || '') !== String(PIN)) return jsonResponse(401, { error: 'Code incorrect' });
+  const auth = resolveRole(p.pin);
+  if (!auth.ok) return jsonResponse(401, { error: 'Code incorrect' });
+  if (auth.role === 'engineer' && !ENGINEER_ACTIONS.includes(p.action)) {
+    return jsonResponse(403, { error: 'Action réservée à l\'admin' });
+  }
 
   try {
     switch (p.action) {
@@ -29,6 +35,7 @@ exports.handler = async (event) => {
       case 'set_status':     return await setStatus(p.reservationId, p.statut);
       case 'delete_resa':    return await deleteResas(p);
       case 'edit_client':    return await editClient(p);
+      case 'assign_inge':    return await assignInge(p);
       case 'fidelity_delta': return await fidelityDelta(p.clientId, parseInt(p.delta, 10) || 0);
       case 'use_free':       return await useFreeSession(p.clientId);
       case 'block_slot':     return await blockSlot(p);
@@ -221,6 +228,24 @@ async function editClient(p) {
   if (p.email !== undefined) fields['Email'] = (p.email || '').trim();
   await patchResilient(`${airtableTable(TABLES.CLIENTS)}/${p.clientId}`, fields);
   return jsonResponse(200, { ok: true, phone: digits || null, carteUrl: digits.length >= 8 ? carteUrl(digits) : null });
+}
+
+// Assigne un ingénieur à une session + son % de commission (défaut 20 %).
+// Écrit les champs Airtable « Ingé assigné » (single-select) et « Commission % ».
+// `saved` = false si les champs n'existent pas encore dans Airtable (setup à faire).
+async function assignInge(p) {
+  if (!p.reservationId) return jsonResponse(400, { error: 'reservationId requis' });
+  const inge = p.inge;
+  if (!ENGINEERS.includes(inge)) return jsonResponse(400, { error: 'Ingé invalide' });
+  let comm = parseInt(p.commission, 10);
+  if (isNaN(comm) || comm < 0) comm = COMMISSION_DEFAULT;
+  if (comm > 100) comm = 100;
+  const res = await patchResilient(`${airtableTable(TABLES.RESERVATIONS)}/${p.reservationId}`, {
+    'Ingé assigné': inge,
+    'Commission %': comm,
+  });
+  const saved = res?.fields?.['Ingé assigné'] === inge;
+  return jsonResponse(200, { ok: true, inge, commission: comm, saved });
 }
 
 // Encaisse le solde → Soldée

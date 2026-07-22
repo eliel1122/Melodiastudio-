@@ -9,9 +9,8 @@
 const {
   airtable, airtableTable, TABLES, jsonResponse, preflight,
   SERVICE_LABELS, PRICES, TUESDAY_HOUR_PRICE, depositFor,
+  resolveRole, COMMISSION_DEFAULT,
 } = require('./_lib');
-
-const PIN = process.env.CONSOLE_PIN || '2024';
 
 // label affiché → id service (pour retrouver le prix)
 const LABEL_TO_ID = {};
@@ -26,7 +25,10 @@ exports.handler = async (event) => {
 
   let p;
   try { p = JSON.parse(event.body || '{}'); } catch { return jsonResponse(400, { error: 'Body invalide' }); }
-  if (String(p.pin || '') !== String(PIN)) return jsonResponse(401, { error: 'Code incorrect' });
+  const auth = resolveRole(p.pin);
+  if (!auth.ok) return jsonResponse(401, { error: 'Code incorrect' });
+  // Le dashboard expose du CA / des montants partout → admin uniquement.
+  if (auth.role !== 'admin') return jsonResponse(403, { error: 'Réservé à l\'admin' });
 
   try {
     const recs = await fetchAllReservations();
@@ -92,6 +94,7 @@ function aggregate(recs) {
   let resaMonth = 0, aVenir = 0, paidCount = 0;
   const byService = {}; // label → {count, ca}
   const byClient = {};   // nom → {count, ca}
+  const byInge = {};     // ingé → {count, montant} — commission reversée
   const byWeekday = [0, 0, 0, 0, 0, 0, 0]; // Lun..Dim (count)
   const dailyMap = {};   // date → ca (30 derniers jours)
   const bookedDays = {};  // date → nb de résas actives (calendrier)
@@ -136,6 +139,15 @@ function aggregate(recs) {
 
       const wd = (new Date(date + 'T00:00:00Z').getUTCDay() + 6) % 7; // 0=Lun
       byWeekday[wd]++;
+
+      // Reversé à l'ingé assigné : % du prix TOTAL de la presta (défaut 20 %).
+      const inge = one(f['Ingé assigné']);
+      if (inge) {
+        const pct = (Number(f['Commission %']) || COMMISSION_DEFAULT) / 100;
+        (byInge[inge] = byInge[inge] || { count: 0, montant: 0 });
+        byInge[inge].count++;
+        byInge[inge].montant += Math.round(fullPrice(f) * pct);
+      }
     }
     if (date in dailyMap) dailyMap[date] += ca;
   }
@@ -146,6 +158,8 @@ function aggregate(recs) {
     .map(([nom, v]) => ({ nom, ...v })).sort((a, b) => b.ca - a.ca).slice(0, 6);
   const weekday = byWeekday.map((count, i) => ({ jour: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'][i], count }));
   const daily = Object.entries(dailyMap).map(([date, ca]) => ({ date, ca }));
+  const ingesReverse = Object.entries(byInge)
+    .map(([inge, v]) => ({ inge, ...v })).sort((a, b) => b.montant - a.montant);
 
   return {
     kpis: {
@@ -155,6 +169,6 @@ function aggregate(recs) {
       panierMoyen: paidCount ? Math.round(caTotal / paidCount) : 0,
       totalResas: recs.length,
     },
-    services, topClients, weekday, daily, bookedDays,
+    services, topClients, weekday, daily, bookedDays, ingesReverse,
   };
 }

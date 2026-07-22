@@ -4,9 +4,7 @@
 // (par téléphone) + sa fidélité + ses réservations récentes.
 // =====================================================
 
-const { airtable, airtableTable, TABLES, jsonResponse, preflight, carteUrl } = require('./_lib');
-
-const PIN = process.env.CONSOLE_PIN || '2024';
+const { airtable, airtableTable, TABLES, jsonResponse, preflight, carteUrl, resolveRole } = require('./_lib');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return preflight();
@@ -14,11 +12,19 @@ exports.handler = async (event) => {
 
   let p;
   try { p = JSON.parse(event.body || '{}'); } catch { return jsonResponse(400, { error: 'Body invalide' }); }
-  if (String(p.pin || '') !== String(PIN)) return jsonResponse(401, { error: 'Code incorrect' });
+  const auth = resolveRole(p.pin);
+  if (!auth.ok) return jsonResponse(401, { error: 'Code incorrect' });
+  const isEng = auth.role === 'engineer';
 
   const q = (p.query || '').trim();
   const ref = (p.ref || (isRef(q) ? q : '')).trim();
   const phone = (p.phone || (!isRef(q) ? q : '')).trim();
+
+  // Ping de validation du PIN (login) : aucune requête → renvoie le rôle,
+  // pour que le front configure la vue (admin complet vs espace ingé restreint).
+  if (!p.mode && !ref && !phone && !q) {
+    return jsonResponse(200, { ok: true, kind: 'auth', role: auth.role, engineer: auth.engineer });
+  }
 
   try {
     // 0. Liste des réservations (gestion des statuts façon Airtable, en + simple)
@@ -51,11 +57,16 @@ exports.handler = async (event) => {
         }
         visible.push(mapResa(rec));
       }
-      return jsonResponse(200, { ok: true, kind: 'list', reservations: visible });
+      // Espace ingé : uniquement SES sessions, et sans aucun montant.
+      const out = isEng
+        ? visible.filter(r => r.inge === auth.engineer).map(sanitizeResa)
+        : visible;
+      return jsonResponse(200, { ok: true, kind: 'list', reservations: out, role: auth.role, engineer: auth.engineer });
     }
 
-    // 0bis. Liste des clients (onglet Clients)
+    // 0bis. Liste des clients (onglet Clients) — admin uniquement
     if (p.mode === 'clients') {
+      if (isEng) return jsonResponse(403, { error: 'Réservé à l\'admin' });
       const out = [];
       let offset = '';
       for (let i = 0; i < 10; i++) { // 10 × 100 = 1000 max
@@ -77,7 +88,8 @@ exports.handler = async (event) => {
       if (found.records?.length) {
         const resa = found.records[0];
         const client = await clientFromReservation(resa);
-        return jsonResponse(200, { ok: true, kind: 'booking', reservation: mapResa(resa), client });
+        const reservation = isEng ? sanitizeResa(mapResa(resa)) : mapResa(resa);
+        return jsonResponse(200, { ok: true, kind: 'booking', reservation, client, role: auth.role });
       }
       return jsonResponse(404, { error: 'Réservation introuvable' });
     }
@@ -92,8 +104,9 @@ exports.handler = async (event) => {
       );
       if (!found.records?.length) return jsonResponse(404, { error: 'Client introuvable' });
       const client = mapClient(found.records[0]);
-      const resas = await reservationsForClient(found.records[0].id);
-      return jsonResponse(200, { ok: true, kind: 'client', client, reservations: resas });
+      let resas = await reservationsForClient(found.records[0].id);
+      if (isEng) resas = resas.map(sanitizeResa);
+      return jsonResponse(200, { ok: true, kind: 'client', client, reservations: resas, role: auth.role });
     }
 
     return jsonResponse(400, { error: 'Référence ou téléphone requis' });
@@ -134,7 +147,15 @@ function mapResa(r) {
     solde: extractSolde(f['Notes'] || ''),
     clientNom: one(f['Nom complet client']) || 'Client',
     clientPhone: one(f['Téléphone client']) || '',
+    inge: one(f['Ingé assigné']) || null,
+    commission: (f['Commission %'] ?? null),
   };
+}
+
+// Retire toute info monétaire d'une résa avant de l'envoyer à un ingé
+// (les montants — solde, mode de paiement, notes — restent réservés à l'admin).
+function sanitizeResa(r) {
+  return { ...r, solde: 0, modePaiement: '', notes: '', commission: null };
 }
 
 function mapClient(c) {

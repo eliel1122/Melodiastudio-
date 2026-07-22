@@ -295,12 +295,23 @@ async function creerCarte(from, name) {
       }),
     });
   } catch (e) { console.error('[creerCarte]', e.message); }
-  return await sendText(from,
+  await sendText(from,
     `🎉 *Bienvenue dans la Melodia Family, ${name} !*\n\n` +
     `Ta carte *Bronze* est créée avec *1 point offert* ⭐\n` +
-    `Chaque réservation = +1 point. À 5 points, une séance offerte 🎁\n\n` +
-    `Ta carte : https://melodiastudio.pro/pages/ma-carte.html`
+    `Chaque réservation = +1 point. À 5 points, une séance offerte 🎁`
   );
+  // Laisse Airtable indexer le nouveau client avant que /api/carte-fidelite ne le cherche
+  await new Promise((r) => setTimeout(r, 1200));
+  // Puis la carte en PNG (comme sendMaCarte)
+  return await callMeta(from, {
+    type: 'image',
+    image: {
+      link: carteUrl(from),
+      caption:
+        `🎁 Voici ta carte fidélité Melodia — présente-la à l'accueil.\n\n` +
+        `💳 Ta carte en ligne : https://melodiastudio.pro/pages/ma-carte.html`,
+    },
+  });
 }
 
 // ---- Visite ----

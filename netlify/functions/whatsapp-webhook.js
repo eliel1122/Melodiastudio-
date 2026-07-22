@@ -798,14 +798,12 @@ async function confirmBooking(from, name, svcId, dateIso, hStr) {
     }
   }
 
-  // Client : recherche par téléphone, sinon création avec le nom WhatsApp
+  // Client : recherche tolérante (FIND sur les 8 derniers chiffres, comme
+  // findClientByPhone) pour ne PAS créer de doublon, puis création si absent.
   let clientId = null;
   try {
-    const found = await airtable(
-      `${airtableTable(TABLES.CLIENTS)}?filterByFormula=${encodeURIComponent(`{Téléphone} = '+${from}'`)}&maxRecords=1`,
-      { method: 'GET' }
-    );
-    if (found.records?.length) clientId = found.records[0].id;
+    const existing = await findClientByPhone(from);
+    if (existing) clientId = existing.id;
     else {
       const created = await airtable(`${airtableTable(TABLES.CLIENTS)}`, {
         method: 'POST',

@@ -230,11 +230,15 @@ function todayISO() {
 function carteToken(phone) {
   const crypto = require('crypto');
   const secret = process.env.WHATSAPP_VERIFY_TOKEN || 'melodia';
-  return crypto.createHmac('sha256', secret).update(String(phone)).digest('hex').slice(0, 16);
+  // On signe TOUJOURS les chiffres seuls : l'endpoint valide phone.replace(/\D/g,'')
+  // → si on signait un "+225…" (format YCloud) le token ne matcherait pas (403).
+  const digits = String(phone).replace(/\D/g, '');
+  return crypto.createHmac('sha256', secret).update(digits).digest('hex').slice(0, 16);
 }
 
 function carteUrl(phone) {
-  return `https://melodiastudio.pro/api/carte-fidelite?phone=${encodeURIComponent(phone)}&t=${carteToken(phone)}`;
+  const digits = String(phone).replace(/\D/g, '');
+  return `https://melodiastudio.pro/api/carte-fidelite?phone=${digits}&t=${carteToken(digits)}`;
 }
 
 // Envoi d'une image au client via YCloud (même transport que le bot).

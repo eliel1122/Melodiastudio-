@@ -82,7 +82,7 @@ exports.handler = async (event) => {
 // YCloud — message entrant (transport de prod)
 // =====================================================
 async function handleYCloudMessage(m) {
-  const from = m.from;                        // ex "2250700000000"
+  const from = (m.from || '').replace(/\D/g, ''); // wa_id en chiffres seuls (YCloud peut envoyer "+225…")
   const name = m.customerProfile?.name || 'là';
 
   if (m.type === 'text') {
@@ -105,7 +105,7 @@ async function handleYCloudMessage(m) {
 // Routing des messages entrants (Meta / simulations)
 // =====================================================
 async function handleMessage(msg, contact) {
-  const from = msg.from;
+  const from = (msg.from || '').replace(/\D/g, '');
   const name = contact.profile?.name || 'là';
 
   // Type du message

@@ -6,6 +6,14 @@
   const HERE = (window.MELODIA_PAGE || '').toLowerCase();
   const BASE = window.MELODIA_BASE || '../';
 
+  // ---- Meta Pixel : charge pixel.js une seule fois (toutes les pages avec ce script)
+  if (!window.__melodiaPixel) {
+    const px = document.createElement('script');
+    px.src = BASE + 'js/pixel.js';
+    px.async = true;
+    (document.head || document.documentElement).appendChild(px);
+  }
+
   const NAV_ITEMS = [
     { href: `${BASE}pages/studio.html`,    label: 'Le Studio', id: 'studio' },
     { href: `${BASE}pages/services.html`,  label: 'Services',  id: 'services' },

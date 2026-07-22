@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="../css/design-system.css" />
   <link rel="stylesheet" href="../css/home.css" />
   <link rel="stylesheet" href="../css/pages.css" />
+  <!-- Meta Pixel — chargé tôt pour déclencher l'évènement Achat à la confirmation -->
+  <script src="../js/pixel.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
@@ -99,6 +101,8 @@
         const d = await res.json();
         if (d.ok && d.status === 'success') {
           el.innerHTML = ok(d, ref);
+          // Meta Pixel — Achat confirmé (même eventID que le CAPI serveur → dédup)
+          try { window.melodiaTrackPurchase && window.melodiaTrackPurchase(d.amount, ref); } catch (_) {}
           // QR : encode l'URL de vérification de la réservation
           try {
             new QRCode(document.getElementById('qr'), {

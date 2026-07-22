@@ -2,6 +2,14 @@
    MELODIA STUDIO — UI interactions (nav, reveals, carousel)
    ========================================================= */
 (() => {
+  // ---- Meta Pixel : charge pixel.js une seule fois (page d'accueil)
+  if (!window.__melodiaPixel) {
+    const px = document.createElement('script');
+    px.src = (window.MELODIA_BASE || './') + 'js/pixel.js';
+    px.async = true;
+    (document.head || document.documentElement).appendChild(px);
+  }
+
   // ---- Mini artists carousel
   const track = document.getElementById('artists-mini-track');
   if (track) {

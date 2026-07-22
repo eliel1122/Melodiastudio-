@@ -81,6 +81,16 @@ exports.handler = async (event) => {
       `Réf ${meta.ref || data.reference}`;
     await sendWhatsApp(summary).catch(() => {});
 
+    // Meta Conversions API — remonte l'achat à Meta pour l'optimisation « Achat ».
+    // (La plupart des paiements passent par le bot WhatsApp, hors site : c'est cet
+    //  appel serveur qui compte. event_id = réf Paystack, même que le pixel navigateur.)
+    await sendMetaPurchase({
+      value: paid,
+      phone: meta.phone,
+      email: data.customer?.email,
+      eventId: data.reference,
+    }).catch(() => {});
+
     // Confirmation automatique au client sur WhatsApp (site ET bot),
     // dès qu'on a un numéro exploitable.
     const wa = normalizePhone(meta.phone);
@@ -144,6 +154,57 @@ async function sendYCloudText(to, body) {
       body: JSON.stringify({ from, to, type: 'text', text: { body } }),
     });
   } catch (e) { console.error('[paystack] ycloud send failed:', e.message); }
+}
+
+// =====================================================
+// Meta Conversions API — évènement Purchase côté serveur.
+// Pixel « Melodia Studio Pixel » (ID 2061006034501705). Le téléphone et
+// l'e-mail sont hashés en SHA-256 (exigence Meta). event_id partagé avec le
+// pixel navigateur (réf Paystack) pour que Meta déduplique le doublon.
+// Ne fait rien si META_CAPI_TOKEN n'est pas défini (env Netlify).
+// =====================================================
+async function sendMetaPurchase({ value, phone, email, eventId }) {
+  const token = process.env.META_CAPI_TOKEN;
+  const pixelId = process.env.META_PIXEL_ID || '2061006034501705';
+  if (!token) { console.log('[meta-capi] skipped (META_CAPI_TOKEN non défini)'); return; }
+
+  const crypto = require('crypto');
+  const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+
+  // user_data : téléphone (clé principale pour les résas via bot WhatsApp) + e-mail si réel
+  const user_data = {};
+  const wa = normalizePhone(phone);            // ex "2250703387738" (sans +)
+  if (wa) user_data.ph = [sha256(wa)];
+  const em = (email || '').trim().toLowerCase();
+  if (em && em.includes('@') && em !== 'client@melodiastudio.pro') user_data.em = [sha256(em)];
+  if (!Object.keys(user_data).length) { console.log('[meta-capi] skipped (ni téléphone ni e-mail)'); return; }
+
+  const body = {
+    data: [{
+      event_name: 'Purchase',
+      event_time: Math.floor(Date.now() / 1000),
+      ...(eventId ? { event_id: String(eventId) } : {}),
+      action_source: 'website',
+      event_source_url: 'https://melodiastudio.pro/pages/paiement-confirme.html',
+      user_data,
+      custom_data: { currency: 'XOF', value: Number(value) || 0 },
+    }],
+  };
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v20.0/${pixelId}/events?access_token=${encodeURIComponent(token)}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    );
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || out.error) {
+      console.error('[meta-capi] error:', out.error?.message || `HTTP ${res.status}`);
+    } else {
+      console.log(`[meta-capi] Purchase envoyé (events_received=${out.events_received ?? '?'})`);
+    }
+  } catch (e) {
+    console.error('[meta-capi] fetch failed:', e.message);
+  }
 }
 
 // =====================================================

@@ -763,7 +763,8 @@ async function startPayment(from, name, svcId, dateIso, hStr, choice) {
       `Montant : *${montant.toLocaleString('fr-FR').replace(/,/g, ' ')} F*` +
       (choice === 'acompte' && data.solde ? ` (acompte non remboursable · solde ${data.solde} F au studio)` : '') +
       `\n\n👉 Paie ici (carte, Orange Money, Wave, MTN) :\n${data.authorization_url}\n\n` +
-      `Dès que c'est payé, tu reçois ta confirmation ici. Le créneau est gardé 5 min ⏳`
+      `Dès que c'est payé, tu reçois ta confirmation ici. Le créneau est gardé 5 min ⏳\n\n` +
+      `🔒 *Paiement 100% sécurisé* (Paystack). Le moindre doute ? Tu peux exiger de parler à un agent du studio au *+225 07 03 38 77 38* — même en visio — *avant* de payer 1 franc. On préfère ça à un client qui hésite.`
     );
   } catch (e) {
     console.error('[wa-payment] error:', e.message);

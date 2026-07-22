@@ -267,19 +267,20 @@ async function sendMaCarte(from, name) {
   const seances = f['Séances totales'] || 0;
   const tier = f['Tier'] || 'Bronze';
   const offertes = (f['Sessions offertes gagnées'] || 0) - (f['Sessions offertes utilisées'] || 0);
-  // 1) Résumé TEXTE — toujours livré, même si l'image ne passe pas (plus jamais "rien").
+  const url = carteUrl(from); // PNG perso rendu côté serveur (par tél + token)
+  // 1) Résumé TEXTE + lien direct — toujours livré, même si l'image ne passe pas.
   await sendText(from,
     `🎁 *Ta carte fidélité Melodia*\n` +
     `Statut : *${tier}* · ${pts}/5 points · ${seances} séance${seances > 1 ? 's' : ''}\n` +
     (offertes > 0
       ? `🎉 ${offertes} séance${offertes > 1 ? 's' : ''} offerte${offertes > 1 ? 's' : ''} à utiliser — présente ta carte à l'accueil !`
       : `💪 Encore ${Math.max(0, 5 - pts)} point(s) et ta prochaine séance est OFFERTE.`) +
-    `\n\n💳 Ta carte en ligne : https://melodiastudio.pro/pages/ma-carte.html`
+    `\n\n👉 Voir / enregistrer ta carte : ${url}`
   );
   // 2) Puis la carte en PNG (rendue par /api/carte-fidelite).
   return await callMeta(from, {
     type: 'image',
-    image: { link: carteUrl(from), caption: '🎴 Ta carte fidélité Melodia' },
+    image: { link: url, caption: '🎴 Ta carte fidélité Melodia' },
   });
 }
 
@@ -298,22 +299,19 @@ async function creerCarte(from, name) {
       }),
     });
   } catch (e) { console.error('[creerCarte]', e.message); }
+  const url = carteUrl(from); // PNG perso rendu côté serveur (par tél + token)
   await sendText(from,
     `🎉 *Bienvenue dans la Melodia Family, ${name} !*\n\n` +
     `Ta carte *Bronze* est créée avec *1 point offert* ⭐\n` +
-    `Chaque réservation = +1 point. À 5 points, une séance offerte 🎁`
+    `Chaque réservation = +1 point. À 5 points, une séance offerte 🎁\n\n` +
+    `👉 Voir / enregistrer ta carte : ${url}`
   );
   // Laisse Airtable indexer le nouveau client avant que /api/carte-fidelite ne le cherche
   await new Promise((r) => setTimeout(r, 1200));
-  // Puis la carte en PNG (comme sendMaCarte)
+  // Puis la carte en PNG (le lien ci-dessus reste le filet si l'image ne passe pas)
   return await callMeta(from, {
     type: 'image',
-    image: {
-      link: carteUrl(from),
-      caption:
-        `🎁 Voici ta carte fidélité Melodia — présente-la à l'accueil.\n\n` +
-        `💳 Ta carte en ligne : https://melodiastudio.pro/pages/ma-carte.html`,
-    },
+    image: { link: url, caption: `🎁 Voici ta carte fidélité Melodia — présente-la à l'accueil.` },
   });
 }
 
